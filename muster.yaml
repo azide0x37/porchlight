@@ -1,0 +1,94 @@
+schema: 1
+framework: Muster
+project:
+  name: porchlight
+  type: linux-service-appliance
+  version_file: VERSION
+  config_dir: /etc/porchlight
+  install_dir: /opt/porchlight
+  current_link: /opt/porchlight/current
+architecture:
+  summary: LAN directory appliance with local dashboard and Home Assistant summary surface.
+  network_leg: LAN scan and observe
+  local_plumbing_leg: SQLite state ledger, sidecar JSON, and static dashboard JSON
+  lifecycle_owner: systemd
+  homeassistant_bridge: MQTT discovery, appliance telemetry, and narrow controls
+patterns:
+  top:
+    - T3C1.edge-appliance-bundle
+    - T2R3.edge-control-plane
+    - T2R6.home-assistant-mqtt-bridge
+  atoms:
+    - C1.service-capsule
+    - C2.persistent-tick
+    - C5.failure-ratchet
+    - C6.lifecycle-capsule
+    - R4.state-ledger
+  support:
+    - T2C5.local-sidecar-bridge
+    - T2C3.scheduled-herald
+  mapping:
+    state_ledger:
+      atom: R4.state-ledger
+      evidence:
+        - SQLite
+        - /run/porchlight/status.json
+        - /run/muster/status.json
+        - /var/lib/porchlight/www/*.json
+    homeassistant_mqtt_bridge:
+      atom: T2R6.home-assistant-mqtt-bridge
+      evidence:
+        - src/porchlight-ha-mqtt-bridge
+        - systemd/porchlight-ha-mqtt-bridge.service
+        - systemd/porchlight-ha-mqtt-bridge.timer
+        - etc/porchlight.mqtt.env.example
+home_assistant:
+  enabled: true
+  discovery_prefix: homeassistant
+  node_id: porchlight
+  device_name: Porchlight LAN Directory
+  base_topic: porchlight
+  mock_first: true
+  real_broker_adapter: mosquitto_pub
+  bridge_runtime_dir: /run/muster/home-assistant-mqtt-bridge
+  bridge_state_dir: /var/lib/muster/home-assistant-mqtt-bridge
+  entities:
+    sensors:
+      - porchlight_health
+      - porchlight_scan_state
+      - porchlight_last_scan
+      - porchlight_hosts_seen
+      - porchlight_active_hosts
+      - porchlight_open_ports
+      - porchlight_new_hosts
+      - porchlight_changed_services
+      - porchlight_network_cidr
+      - porchlight_gateway
+    binary_sensors:
+      - porchlight_scanner_online
+      - porchlight_degraded
+      - porchlight_changes_detected
+    switches:
+      - porchlight_enabled
+    buttons:
+      - porchlight_scan_now
+      - porchlight_deep_scan
+      - porchlight_restart_service
+controls:
+  allowed:
+    enabled:
+      payloads: [ON, OFF]
+      action: write /etc/porchlight/enabled
+    scan_now:
+      payloads: [PRESS]
+      action: systemctl start porchlight-scan.service
+    deep_scan:
+      payloads: [PRESS]
+      action: systemctl start porchlight-deep-scan.service
+    restart:
+      payloads: [PRESS]
+      action: systemctl restart porchlight-web.service porchlight-health.service
+compliance:
+  mock_first_required: true
+  arbitrary_command_payloads_allowed: false
+  tests_required: true
