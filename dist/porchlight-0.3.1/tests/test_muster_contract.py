@@ -17,6 +17,7 @@ class MusterContractTest(unittest.TestCase):
         scan = (ROOT / "systemd/porchlight-scan.service").read_text(encoding="utf-8")
         scan_timer = (ROOT / "systemd/porchlight-scan.timer").read_text(encoding="utf-8")
         self.assertIn("ExecStart=/opt/porchlight/current/bin/porchlight-scan --apply --mode scan", scan)
+        self.assertIn("AF_NETLINK", scan)
         self.assertIn("Unit=porchlight-scan.service", scan_timer)
         for name in [
             "porchlight-discover.timer",

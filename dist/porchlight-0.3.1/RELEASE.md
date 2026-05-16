@@ -1,5 +1,10 @@
 # Release
 
+## 0.3.1
+
+- Fixed scan unit hardening to allow `AF_NETLINK`, which `ip -j
+  route/addr/neigh` requires under systemd.
+
 ## 0.3.0
 
 - Added the package-backed scanner implementation for config, discovery, Nmap

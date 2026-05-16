@@ -1,8 +1,8 @@
 {
   "project": "porchlight",
-  "version": "0.3.0",
-  "artifact": "porchlight-0.3.0.tar.gz",
-  "artifact_url": "https://github.com/azide0x37/porchlight/releases/download/v0.3.0/porchlight-0.3.0.tar.gz",
-  "sha256": "de0613033dd76a3b40ce4a9d18f8cf850ef07b8be5909594786f77f3c1539b9e",
+  "version": "0.3.1",
+  "artifact": "porchlight-0.3.1.tar.gz",
+  "artifact_url": "https://github.com/azide0x37/porchlight/releases/download/v0.3.1/porchlight-0.3.1.tar.gz",
+  "sha256": "f0bc16b3fa32cdcf038427faf772373b2f66fd7a25e924f8b6426f45012517bc",
   "installer": "install.sh"
 }

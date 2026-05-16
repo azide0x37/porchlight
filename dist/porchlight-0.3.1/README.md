@@ -263,9 +263,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-0.3.0/`
-- `dist/porchlight-0.3.0.tar.gz`
-- `dist/porchlight-0.3.0.tar.gz.sha256`
+- `dist/porchlight-0.3.1/`
+- `dist/porchlight-0.3.1.tar.gz`
+- `dist/porchlight-0.3.1.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
