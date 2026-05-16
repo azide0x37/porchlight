@@ -1,0 +1,11 @@
+[Unit]
+Description=Run scheduled Porchlight deep scan
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00
+RandomizedDelaySec=30min
+Unit=porchlight-deep-scan.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

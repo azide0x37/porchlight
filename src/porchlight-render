@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+
+SCRIPT = Path(__file__).resolve()
+sys.path.insert(0, str(SCRIPT.parents[1] / "src"))
+sys.path.insert(0, str(SCRIPT.parent))
+
+from porchlight.config import load_config
+from porchlight.render import render
+from porchlight.store import Store
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="porchlight-render")
+    parser.add_argument("--apply", action="store_true")
+    args = parser.parse_args()
+    config = load_config(apply=args.apply)
+    render(config, Store(config.db_path, config.events_path))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

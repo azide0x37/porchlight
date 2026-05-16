@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+
+command_name="${1:-status}"
+
+case "$command_name" in
+  status)
+    cat /run/porchlight/status.json
+    ;;
+  scan-now|scan)
+    systemctl start porchlight-scan.service
+    ;;
+  discover)
+    systemctl start porchlight-discover.service
+    ;;
+  deep-scan|deep)
+    systemctl start porchlight-deep-scan.service
+    ;;
+  render)
+    systemctl start porchlight-render.service
+    ;;
+  health|doctor)
+    /opt/porchlight/current/bin/doctor.sh
+    ;;
+  *)
+    printf 'usage: porchlightctl [status|scan-now|discover|deep-scan|render|health]\n' >&2
+    exit 2
+    ;;
+esac

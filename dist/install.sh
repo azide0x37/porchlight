@@ -82,7 +82,7 @@ install_packages() {
 
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
-    apt-get install -y curl ca-certificates mosquitto-clients
+    apt-get install -y curl ca-certificates mosquitto-clients nmap arp-scan
   else
     log "apt-get not found; skipping package install"
   fi
@@ -159,16 +159,32 @@ install_file "$SRC_ROOT/src/porchlight-ha-mqtt-bridge" "$RELEASE_DIR/bin/porchli
 install_file "$SRC_ROOT/src/porchlight-ha-mqtt-bridge" "$RELEASE_DIR/src/porchlight-ha-mqtt-bridge" 0755
 install_file "$SRC_ROOT/src/porchlight-scan" "$RELEASE_DIR/bin/porchlight-scan" 0755
 install_file "$SRC_ROOT/src/porchlight-scan" "$RELEASE_DIR/src/porchlight-scan" 0755
+install_file "$SRC_ROOT/src/porchlight-render" "$RELEASE_DIR/bin/porchlight-render" 0755
+install_file "$SRC_ROOT/src/porchlight-render" "$RELEASE_DIR/src/porchlight-render" 0755
+install_file "$SRC_ROOT/src/porchlight-health" "$RELEASE_DIR/bin/porchlight-health" 0755
+install_file "$SRC_ROOT/src/porchlight-health" "$RELEASE_DIR/src/porchlight-health" 0755
+install_file "$SRC_ROOT/src/porchlight-web" "$RELEASE_DIR/bin/porchlight-web" 0755
+install_file "$SRC_ROOT/src/porchlight-web" "$RELEASE_DIR/src/porchlight-web" 0755
+cp -R "$SRC_ROOT/src/porchlight" "$(prefix_path "$RELEASE_DIR/src/")"
 install_file "$SRC_ROOT/bin/doctor.sh" "$RELEASE_DIR/bin/doctor.sh" 0755
 install_file "$SRC_ROOT/bin/update.sh" "$RELEASE_DIR/bin/update.sh" 0755
 install_file "$SRC_ROOT/bin/uninstall.sh" "$RELEASE_DIR/bin/uninstall.sh" 0755
 install_file "$SRC_ROOT/bin/render-units.sh" "$RELEASE_DIR/bin/render-units.sh" 0755
+install_file "$SRC_ROOT/bin/scan-now.sh" "$RELEASE_DIR/bin/scan-now.sh" 0755
+install_file "$SRC_ROOT/bin/porchlightctl" "$RELEASE_DIR/bin/porchlightctl" 0755
 install_file "$SRC_ROOT/systemd/porchlight-ha-mqtt-bridge.service" "$RELEASE_DIR/systemd/porchlight-ha-mqtt-bridge.service" 0644
 install_file "$SRC_ROOT/systemd/porchlight-ha-mqtt-bridge.timer" "$RELEASE_DIR/systemd/porchlight-ha-mqtt-bridge.timer" 0644
 install_file "$SRC_ROOT/systemd/porchlight-scan.service" "$RELEASE_DIR/systemd/porchlight-scan.service" 0644
 install_file "$SRC_ROOT/systemd/porchlight-scan.timer" "$RELEASE_DIR/systemd/porchlight-scan.timer" 0644
 install_file "$SRC_ROOT/systemd/porchlight-discover.service" "$RELEASE_DIR/systemd/porchlight-discover.service" 0644
+install_file "$SRC_ROOT/systemd/porchlight-discover.timer" "$RELEASE_DIR/systemd/porchlight-discover.timer" 0644
 install_file "$SRC_ROOT/systemd/porchlight-deep-scan.service" "$RELEASE_DIR/systemd/porchlight-deep-scan.service" 0644
+install_file "$SRC_ROOT/systemd/porchlight-deep-scan.timer" "$RELEASE_DIR/systemd/porchlight-deep-scan.timer" 0644
+install_file "$SRC_ROOT/systemd/porchlight-render.service" "$RELEASE_DIR/systemd/porchlight-render.service" 0644
+install_file "$SRC_ROOT/systemd/porchlight-render.timer" "$RELEASE_DIR/systemd/porchlight-render.timer" 0644
+install_file "$SRC_ROOT/systemd/porchlight-health.service" "$RELEASE_DIR/systemd/porchlight-health.service" 0644
+install_file "$SRC_ROOT/systemd/porchlight-health.timer" "$RELEASE_DIR/systemd/porchlight-health.timer" 0644
+install_file "$SRC_ROOT/systemd/porchlight-web.service" "$RELEASE_DIR/systemd/porchlight-web.service" 0644
 install_file "$SRC_ROOT/etc/porchlight.env.example" "$RELEASE_DIR/etc/porchlight.env.example" 0644
 install_file "$SRC_ROOT/etc/porchlight.mqtt.env.example" "$RELEASE_DIR/etc/porchlight.mqtt.env.example" 0644
 install_file "$SRC_ROOT/README.md" "$RELEASE_DIR/README.md" 0644
@@ -207,7 +223,7 @@ if [ -z "$ROOT" ]; then
   cp "$SRC_ROOT"/systemd/*.service "$SYSTEMD_DIR/"
   cp "$SRC_ROOT"/systemd/*.timer "$SYSTEMD_DIR/"
   systemctl daemon-reload
-  systemctl enable --now porchlight-scan.timer porchlight-ha-mqtt-bridge.timer
+  systemctl enable --now porchlight-web.service porchlight-discover.timer porchlight-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer
 fi
 
 log "$PROJECT $VERSION installed"

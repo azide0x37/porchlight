@@ -1,0 +1,12 @@
+[Unit]
+Description=Run cheap Porchlight host discovery
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+RandomizedDelaySec=90s
+Unit=porchlight-discover.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
