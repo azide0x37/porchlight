@@ -1,5 +1,14 @@
 # Release
 
+## 0.2.0
+
+- Added the first real scanner implementation through `src/porchlight-scan`.
+- Added `porchlight-scan.service`, `porchlight-scan.timer`,
+  `porchlight-discover.service`, and `porchlight-deep-scan.service`.
+- Scanner now writes `/run/porchlight/status.json`, `/run/muster/status.json`,
+  and `/var/lib/porchlight/www/*.json` using LAN neighbor and Tailscale data.
+- Installer now deploys scanner units and enables the scan timer.
+
 ## 0.1.1
 
 - Added apt-based installation for `mosquitto-clients` so real MQTT publishing

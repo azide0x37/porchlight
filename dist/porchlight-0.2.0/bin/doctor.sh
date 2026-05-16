@@ -20,11 +20,14 @@ check() {
 
 check "current release link exists" test -e "$CURRENT"
 check "bridge executable exists" test -x "$CURRENT/bin/porchlight-ha-mqtt-bridge"
+check "scan executable exists" test -x "$CURRENT/bin/porchlight-scan"
 check "main config exists" test -f "$CONFIG_DIR/porchlight.env"
 check "mqtt config exists" test -f "$CONFIG_DIR/porchlight.mqtt.env"
 check "enabled flag exists" test -f "$CONFIG_DIR/enabled"
-check "service unit exists" test -f "$CURRENT/systemd/porchlight-ha-mqtt-bridge.service"
-check "timer unit exists" test -f "$CURRENT/systemd/porchlight-ha-mqtt-bridge.timer"
+check "bridge service unit exists" test -f "$CURRENT/systemd/porchlight-ha-mqtt-bridge.service"
+check "bridge timer unit exists" test -f "$CURRENT/systemd/porchlight-ha-mqtt-bridge.timer"
+check "scan service unit exists" test -f "$CURRENT/systemd/porchlight-scan.service"
+check "scan timer unit exists" test -f "$CURRENT/systemd/porchlight-scan.timer"
 
 if [ -f "$CONFIG_DIR/porchlight.mqtt.env" ]; then
   HA_MQTT_ENABLE=$(sed -n 's/^HA_MQTT_ENABLE=//p' "$CONFIG_DIR/porchlight.mqtt.env" | head -n 1)
@@ -39,5 +42,5 @@ MUSTER_MOCK_ROOT="$MOCK_ROOT" "$CURRENT/bin/porchlight-ha-mqtt-bridge" --once >/
 check "bridge emits state" test -s "$MOCK_ROOT/run/muster/home-assistant-mqtt-bridge/mqtt-outbox/porchlight_state.json"
 
 if command -v systemd-analyze >/dev/null 2>&1 && [ -z "$ROOT" ]; then
-  systemd-analyze verify "$CURRENT/systemd/porchlight-ha-mqtt-bridge.service" "$CURRENT/systemd/porchlight-ha-mqtt-bridge.timer"
+  systemd-analyze verify "$CURRENT"/systemd/*.service "$CURRENT"/systemd/*.timer
 fi

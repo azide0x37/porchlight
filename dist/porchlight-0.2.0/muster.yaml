@@ -32,6 +32,9 @@ patterns:
     state_ledger:
       atom: R4.state-ledger
       evidence:
+        - src/porchlight-scan
+        - systemd/porchlight-scan.service
+        - systemd/porchlight-scan.timer
         - SQLite
         - /run/porchlight/status.json
         - /run/muster/status.json

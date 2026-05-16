@@ -4,15 +4,15 @@ Porchlight is a Muster self-certified small Linux appliance project for a LAN
 directory scanner. It treats Home Assistant as a first-class presentation and
 control surface without making Home Assistant the LAN database.
 
-The current implementation is the operational skeleton and Home Assistant MQTT
-bridge. Scanner services will feed the same state ledger and sidecar snapshots
-that the bridge already consumes.
+The current implementation includes the operational skeleton, Home Assistant
+MQTT bridge, and a first scanner pass that reads the local neighbor table and
+Tailscale status.
 
 ```text
 scan + observe
-  porchlight-discover.service
-  porchlight-scan.service
-  porchlight-deep-scan.service
+  porchlight-discover.service  -> quick inventory mode
+  porchlight-scan.service      -> LAN neighbor + Tailscale inventory
+  porchlight-deep-scan.service -> reserved deep mode
         |
         v
 state + interpretation
@@ -64,6 +64,25 @@ names where the library already has a shape:
 | Install/update/uninstall/doctor lifecycle | `C6.lifecycle-capsule` |
 | Scanner truth source | `R4.state-ledger` |
 | Local state snapshots | `T2C5.local-sidecar-bridge` |
+
+## Scanner
+
+`porchlight-scan` writes the state files consumed by the Home Assistant bridge
+and future dashboard:
+
+- `/run/porchlight/status.json`
+- `/run/muster/status.json`
+- `/var/lib/porchlight/www/status.json`
+- `/var/lib/porchlight/www/hosts.json`
+
+The first scanner pass uses sources already visible from the appliance:
+
+- `ip -j neigh show` for LAN neighbor/ARP evidence
+- `ip -j route show default` and `ip -j addr show` for gateway and CIDR
+- `tailscale status --json` for tailnet devices
+
+This is intentionally conservative. It records observed hosts and Tailscale
+peers before adding active probing or port scans.
 
 ## Home Assistant MQTT Bridge
 
@@ -226,9 +245,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-0.1.1/`
-- `dist/porchlight-0.1.1.tar.gz`
-- `dist/porchlight-0.1.1.tar.gz.sha256`
+- `dist/porchlight-0.2.0/`
+- `dist/porchlight-0.2.0.tar.gz`
+- `dist/porchlight-0.2.0.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
@@ -237,11 +256,12 @@ This writes:
 | Requirement | Status | Evidence |
 | --- | --- | --- |
 | systemd owns lifecycle | PASS | `systemd/porchlight-ha-mqtt-bridge.service` calls `/opt/porchlight/current/bin/porchlight-ha-mqtt-bridge` |
-| systemd timer owns scheduled refresh | PASS | `systemd/porchlight-ha-mqtt-bridge.timer` runs the bridge every minute after boot |
+| systemd timer owns scheduled refresh | PASS | `systemd/porchlight-scan.timer` and `systemd/porchlight-ha-mqtt-bridge.timer` run scan and publish loops |
 | config under `/etc/porchlight` | PASS | `etc/porchlight.mqtt.env.example`, `bin/install.sh` preserves existing config |
 | runtime under `/opt/porchlight/releases/<version>` | PASS | `bin/install.sh` installs to `/opt/porchlight/releases/$(VERSION)` |
 | `/opt/porchlight/current` active link | PASS | `bin/install.sh` updates the symlink after staging release files |
 | units call `/opt/porchlight/current/bin/...` | PASS | `systemd/porchlight-ha-mqtt-bridge.service` `ExecStart` |
+| scanner writes state ledger | PASS | `src/porchlight-scan`, `tests/test_scan.py` |
 | installer idempotent | PASS | `make test` runs staged install; installer only creates default config when missing |
 | broker adapter dependency handled | PASS | `bin/install.sh` installs `mosquitto-clients` on apt hosts; `bin/doctor.sh` checks `MOSQUITTO_PUB` when `HA_MQTT_ENABLE=1` |
 | updater verifies and rolls back | PASS | `bin/update.sh` checks SHA256, runs `doctor.sh`, and restores previous `current` on failure |

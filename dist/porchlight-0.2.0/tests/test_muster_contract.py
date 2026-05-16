@@ -14,6 +14,10 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("EnvironmentFile=-/etc/porchlight/porchlight.env", service)
         self.assertIn("EnvironmentFile=-/etc/porchlight/porchlight.mqtt.env", service)
         self.assertIn("Unit=porchlight-ha-mqtt-bridge.service", timer)
+        scan = (ROOT / "systemd/porchlight-scan.service").read_text(encoding="utf-8")
+        scan_timer = (ROOT / "systemd/porchlight-scan.timer").read_text(encoding="utf-8")
+        self.assertIn("ExecStart=/opt/porchlight/current/bin/porchlight-scan --apply --mode scan", scan)
+        self.assertIn("Unit=porchlight-scan.service", scan_timer)
 
     def test_readme_self_certifies_muster_contract(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

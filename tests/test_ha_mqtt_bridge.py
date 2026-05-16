@@ -131,6 +131,9 @@ class MusterLifecycleTest(unittest.TestCase):
             current = stage / "opt/porchlight/current"
             self.assertTrue(current.exists())
             self.assertTrue((stage / f"opt/porchlight/releases/{version}/bin/porchlight-ha-mqtt-bridge").is_file())
+            self.assertTrue((stage / f"opt/porchlight/releases/{version}/bin/porchlight-scan").is_file())
+            self.assertTrue((stage / f"opt/porchlight/releases/{version}/systemd/porchlight-scan.service").is_file())
+            self.assertTrue((stage / f"opt/porchlight/releases/{version}/systemd/porchlight-scan.timer").is_file())
             self.assertTrue((stage / "etc/porchlight/porchlight.env").is_file())
             self.assertTrue((stage / "etc/porchlight/porchlight.mqtt.env").is_file())
             self.assertEqual((stage / "etc/porchlight/enabled").read_text().strip(), "true")

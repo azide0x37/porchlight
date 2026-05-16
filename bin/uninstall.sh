@@ -14,14 +14,18 @@ prefix_path() {
 }
 
 if [ -z "$ROOT" ] && command -v systemctl >/dev/null 2>&1; then
-  systemctl disable --now porchlight-ha-mqtt-bridge.timer || true
-  systemctl stop porchlight-ha-mqtt-bridge.service || true
-  rm -f /etc/systemd/system/porchlight-ha-mqtt-bridge.service
-  rm -f /etc/systemd/system/porchlight-ha-mqtt-bridge.timer
+  systemctl disable --now porchlight-scan.timer porchlight-ha-mqtt-bridge.timer || true
+  systemctl stop porchlight-scan.service porchlight-discover.service porchlight-deep-scan.service porchlight-ha-mqtt-bridge.service || true
+  rm -f /etc/systemd/system/porchlight-*.service
+  rm -f /etc/systemd/system/porchlight-*.timer
   systemctl daemon-reload
 else
   rm -f "$(prefix_path "/etc/systemd/system/porchlight-ha-mqtt-bridge.service")"
   rm -f "$(prefix_path "/etc/systemd/system/porchlight-ha-mqtt-bridge.timer")"
+  rm -f "$(prefix_path "/etc/systemd/system/porchlight-scan.service")"
+  rm -f "$(prefix_path "/etc/systemd/system/porchlight-scan.timer")"
+  rm -f "$(prefix_path "/etc/systemd/system/porchlight-discover.service")"
+  rm -f "$(prefix_path "/etc/systemd/system/porchlight-deep-scan.service")"
 fi
 
 rm -f "$(prefix_path "/opt/$PROJECT/current")"

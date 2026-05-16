@@ -18,7 +18,7 @@ package: clean
 	mkdir -p "$(PACKAGE_ROOT)"
 	cp -R README.md AGENTS.md CODEX_TASK.md MUSTER.md RELEASE.md SECURITY.md VERSION pyproject.toml uv.lock muster.yaml Makefile bin etc src systemd tests "$(PACKAGE_ROOT)/"
 	find "$(PACKAGE_ROOT)" -name __pycache__ -type d -prune -exec rm -rf {} +
-	chmod 0755 "$(PACKAGE_ROOT)"/bin/*.sh "$(PACKAGE_ROOT)"/src/porchlight-ha-mqtt-bridge
+	chmod 0755 "$(PACKAGE_ROOT)"/bin/*.sh "$(PACKAGE_ROOT)"/src/porchlight-ha-mqtt-bridge "$(PACKAGE_ROOT)"/src/porchlight-scan
 	COPYFILE_DISABLE=1 tar --no-xattrs -C "$(DIST)" -czf "$(TARBALL)" "$(PROJECT)-$(VERSION)"
 	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$(TARBALL)" | awk '{print $$1}' > "$(TARBALL).sha256"; else shasum -a 256 "$(TARBALL)" | awk '{print $$1}' > "$(TARBALL).sha256"; fi
 	cp bin/install.sh "$(DIST)/install.sh"

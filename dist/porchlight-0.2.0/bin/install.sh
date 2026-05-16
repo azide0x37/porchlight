@@ -157,12 +157,18 @@ install_dir "/var/lib/muster/home-assistant-mqtt-bridge" 0755
 
 install_file "$SRC_ROOT/src/porchlight-ha-mqtt-bridge" "$RELEASE_DIR/bin/porchlight-ha-mqtt-bridge" 0755
 install_file "$SRC_ROOT/src/porchlight-ha-mqtt-bridge" "$RELEASE_DIR/src/porchlight-ha-mqtt-bridge" 0755
+install_file "$SRC_ROOT/src/porchlight-scan" "$RELEASE_DIR/bin/porchlight-scan" 0755
+install_file "$SRC_ROOT/src/porchlight-scan" "$RELEASE_DIR/src/porchlight-scan" 0755
 install_file "$SRC_ROOT/bin/doctor.sh" "$RELEASE_DIR/bin/doctor.sh" 0755
 install_file "$SRC_ROOT/bin/update.sh" "$RELEASE_DIR/bin/update.sh" 0755
 install_file "$SRC_ROOT/bin/uninstall.sh" "$RELEASE_DIR/bin/uninstall.sh" 0755
 install_file "$SRC_ROOT/bin/render-units.sh" "$RELEASE_DIR/bin/render-units.sh" 0755
 install_file "$SRC_ROOT/systemd/porchlight-ha-mqtt-bridge.service" "$RELEASE_DIR/systemd/porchlight-ha-mqtt-bridge.service" 0644
 install_file "$SRC_ROOT/systemd/porchlight-ha-mqtt-bridge.timer" "$RELEASE_DIR/systemd/porchlight-ha-mqtt-bridge.timer" 0644
+install_file "$SRC_ROOT/systemd/porchlight-scan.service" "$RELEASE_DIR/systemd/porchlight-scan.service" 0644
+install_file "$SRC_ROOT/systemd/porchlight-scan.timer" "$RELEASE_DIR/systemd/porchlight-scan.timer" 0644
+install_file "$SRC_ROOT/systemd/porchlight-discover.service" "$RELEASE_DIR/systemd/porchlight-discover.service" 0644
+install_file "$SRC_ROOT/systemd/porchlight-deep-scan.service" "$RELEASE_DIR/systemd/porchlight-deep-scan.service" 0644
 install_file "$SRC_ROOT/etc/porchlight.env.example" "$RELEASE_DIR/etc/porchlight.env.example" 0644
 install_file "$SRC_ROOT/etc/porchlight.mqtt.env.example" "$RELEASE_DIR/etc/porchlight.mqtt.env.example" 0644
 install_file "$SRC_ROOT/README.md" "$RELEASE_DIR/README.md" 0644
@@ -198,10 +204,10 @@ if [ ! -f "$(prefix_path "/etc/$PROJECT/enabled")" ]; then
 fi
 
 if [ -z "$ROOT" ]; then
-  cp "$SRC_ROOT/systemd/porchlight-ha-mqtt-bridge.service" "$SYSTEMD_DIR/"
-  cp "$SRC_ROOT/systemd/porchlight-ha-mqtt-bridge.timer" "$SYSTEMD_DIR/"
+  cp "$SRC_ROOT"/systemd/*.service "$SYSTEMD_DIR/"
+  cp "$SRC_ROOT"/systemd/*.timer "$SYSTEMD_DIR/"
   systemctl daemon-reload
-  systemctl enable --now porchlight-ha-mqtt-bridge.timer
+  systemctl enable --now porchlight-scan.timer porchlight-ha-mqtt-bridge.timer
 fi
 
 log "$PROJECT $VERSION installed"

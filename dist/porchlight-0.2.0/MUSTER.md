@@ -35,7 +35,10 @@ The closest Muster Pattern Library vocabulary is:
 ## Contract Status
 
 - systemd owns service lifecycle through `porchlight-ha-mqtt-bridge.service`.
-- systemd timers own scheduled refresh through `porchlight-ha-mqtt-bridge.timer`.
+- systemd owns scanner lifecycle through `porchlight-scan.service`,
+  `porchlight-discover.service`, and `porchlight-deep-scan.service`.
+- systemd timers own scheduled refresh through `porchlight-scan.timer` and
+  `porchlight-ha-mqtt-bridge.timer`.
 - Configuration lives under `/etc/porchlight/`.
 - Runtime code installs under `/opt/porchlight/releases/<version>/`.
 - `/opt/porchlight/current` points to the active release.
