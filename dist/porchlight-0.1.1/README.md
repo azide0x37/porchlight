@@ -160,12 +160,19 @@ curl -fsSL https://github.com/azide0x37/porchlight/releases/latest/download/inst
 
 The installer writes the active release to
 `/opt/porchlight/releases/<version>/`, updates `/opt/porchlight/current`, installs
-the systemd units, and enables `porchlight-ha-mqtt-bridge.timer`.
+required MQTT client packages on apt-based hosts, installs the systemd units, and
+enables `porchlight-ha-mqtt-bridge.timer`.
 
 For staged verification:
 
 ```sh
 MUSTER_ROOT=/tmp/porchlight-stage ./bin/install.sh
+```
+
+For staged verification without package installation:
+
+```sh
+MUSTER_SKIP_PACKAGES=1 MUSTER_ROOT=/tmp/porchlight-stage ./bin/install.sh
 ```
 
 ## Health Check
@@ -183,7 +190,7 @@ mock bridge output.
 `/etc/porchlight/update-manifest.json` unless `UPDATE_MANIFEST_FILE` is set.
 
 ```json
-{"version":"0.1.0","artifact_url":"/path/to/porchlight-0.1.0.tar.gz","sha256":"..."}
+{"version":"0.1.1","artifact_url":"/path/to/porchlight-0.1.1.tar.gz","sha256":"..."}
 ```
 
 The updater verifies SHA256, installs the new release, runs `doctor.sh`, and
@@ -219,9 +226,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-0.1.0/`
-- `dist/porchlight-0.1.0.tar.gz`
-- `dist/porchlight-0.1.0.tar.gz.sha256`
+- `dist/porchlight-0.1.1/`
+- `dist/porchlight-0.1.1.tar.gz`
+- `dist/porchlight-0.1.1.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
@@ -236,6 +243,7 @@ This writes:
 | `/opt/porchlight/current` active link | PASS | `bin/install.sh` updates the symlink after staging release files |
 | units call `/opt/porchlight/current/bin/...` | PASS | `systemd/porchlight-ha-mqtt-bridge.service` `ExecStart` |
 | installer idempotent | PASS | `make test` runs staged install; installer only creates default config when missing |
+| broker adapter dependency handled | PASS | `bin/install.sh` installs `mosquitto-clients` on apt hosts; `bin/doctor.sh` checks `MOSQUITTO_PUB` when `HA_MQTT_ENABLE=1` |
 | updater verifies and rolls back | PASS | `bin/update.sh` checks SHA256, runs `doctor.sh`, and restores previous `current` on failure |
 | uninstaller preserves config by default | PASS | `bin/uninstall.sh` only removes `/etc/porchlight` with `--purge` |
 | Python justified and run through `uv` | PASS | bridge uses Python for JSON/discovery payload generation; `make test` runs `uv run python -m unittest discover -s tests` |

@@ -70,6 +70,24 @@ need_root() {
   fi
 }
 
+install_packages() {
+  if [ "${MUSTER_SKIP_PACKAGES:-0}" = "1" ]; then
+    log "Skipping package install because MUSTER_SKIP_PACKAGES=1"
+    return 0
+  fi
+
+  if [ -n "$ROOT" ]; then
+    return 0
+  fi
+
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update
+    apt-get install -y curl ca-certificates mosquitto-clients
+  else
+    log "apt-get not found; skipping package install"
+  fi
+}
+
 prepare_source() {
   if [ -f "$SRC_ROOT/muster.yaml" ] && [ -f "$SRC_ROOT/src/porchlight-ha-mqtt-bridge" ]; then
     VERSION=$(tr -d '[:space:]' < "$SRC_ROOT/VERSION")
@@ -125,6 +143,7 @@ install_dir() {
 
 need_root
 prepare_source
+install_packages
 
 install_dir "$RELEASE_DIR/bin" 0755
 install_dir "$RELEASE_DIR/src" 0755

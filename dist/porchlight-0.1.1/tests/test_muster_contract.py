@@ -52,3 +52,12 @@ class MusterContractTest(unittest.TestCase):
             "releases/download/v",
         ]:
             self.assertIn(text, makefile)
+
+    def test_installer_and_doctor_cover_mqtt_adapter_dependency(self):
+        install = (ROOT / "bin/install.sh").read_text(encoding="utf-8")
+        doctor = (ROOT / "bin/doctor.sh").read_text(encoding="utf-8")
+
+        self.assertIn("mosquitto-clients", install)
+        self.assertIn("MUSTER_SKIP_PACKAGES", install)
+        self.assertIn("HA_MQTT_ENABLE", doctor)
+        self.assertIn("mqtt publish adapter available", doctor)

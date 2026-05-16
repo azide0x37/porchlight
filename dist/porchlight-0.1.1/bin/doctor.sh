@@ -26,6 +26,15 @@ check "enabled flag exists" test -f "$CONFIG_DIR/enabled"
 check "service unit exists" test -f "$CURRENT/systemd/porchlight-ha-mqtt-bridge.service"
 check "timer unit exists" test -f "$CURRENT/systemd/porchlight-ha-mqtt-bridge.timer"
 
+if [ -f "$CONFIG_DIR/porchlight.mqtt.env" ]; then
+  HA_MQTT_ENABLE=$(sed -n 's/^HA_MQTT_ENABLE=//p' "$CONFIG_DIR/porchlight.mqtt.env" | head -n 1)
+  MOSQUITTO_PUB=$(sed -n 's/^MOSQUITTO_PUB=//p' "$CONFIG_DIR/porchlight.mqtt.env" | head -n 1)
+fi
+
+if [ "${HA_MQTT_ENABLE:-0}" = "1" ]; then
+  check "mqtt publish adapter available" command -v "${MOSQUITTO_PUB:-mosquitto_pub}"
+fi
+
 MUSTER_MOCK_ROOT="$MOCK_ROOT" "$CURRENT/bin/porchlight-ha-mqtt-bridge" --once >/dev/null
 check "bridge emits state" test -s "$MOCK_ROOT/run/muster/home-assistant-mqtt-bridge/mqtt-outbox/porchlight_state.json"
 
