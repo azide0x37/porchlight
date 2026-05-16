@@ -2,7 +2,7 @@
 set -eu
 
 PROJECT="porchlight"
-ROOT="${STAGE_ROOT:-}"
+ROOT="${MUSTER_ROOT:-${STAGE_ROOT:-}}"
 CURRENT="$ROOT/opt/$PROJECT/current"
 CONFIG_DIR="$ROOT/etc/$PROJECT"
 MOCK_ROOT="${MUSTER_MOCK_ROOT:-${ROOT:-/tmp/porchlight-doctor}}"

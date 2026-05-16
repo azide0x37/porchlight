@@ -19,6 +19,7 @@ class MusterContractTest(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         for text in [
             "## Self-Certification",
+            "curl -fsSL https://github.com/azide0x37/porchlight/releases/latest/download/install.sh | sudo sh",
             "systemd owns lifecycle",
             "runtime under `/opt/porchlight/releases/<version>`",
             "updater verifies and rolls back",
@@ -38,3 +39,16 @@ class MusterContractTest(unittest.TestCase):
             "make package",
         ]:
             self.assertIn(text, muster)
+
+    def test_release_manifest_shape_matches_dvd_ingester_reference(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        for text in [
+            '"project"',
+            '"artifact"',
+            '"artifact_url"',
+            '"sha256"',
+            '"installer"',
+            "cp bin/install.sh",
+            "releases/download/v",
+        ]:
+            self.assertIn(text, makefile)

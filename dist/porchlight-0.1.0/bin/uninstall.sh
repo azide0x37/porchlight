@@ -2,7 +2,7 @@
 set -eu
 
 PROJECT="porchlight"
-ROOT="${STAGE_ROOT:-}"
+ROOT="${MUSTER_ROOT:-${STAGE_ROOT:-}}"
 PURGE=0
 
 if [ "${1:-}" = "--purge" ]; then

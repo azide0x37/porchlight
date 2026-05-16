@@ -152,6 +152,12 @@ From a checkout:
 sudo ./bin/install.sh
 ```
 
+From a published release:
+
+```sh
+curl -fsSL https://github.com/azide0x37/porchlight/releases/latest/download/install.sh | sudo sh
+```
+
 The installer writes the active release to
 `/opt/porchlight/releases/<version>/`, updates `/opt/porchlight/current`, installs
 the systemd units, and enables `porchlight-ha-mqtt-bridge.timer`.
@@ -159,7 +165,7 @@ the systemd units, and enables `porchlight-ha-mqtt-bridge.timer`.
 For staged verification:
 
 ```sh
-STAGE_ROOT=/tmp/porchlight-stage ./bin/install.sh
+MUSTER_ROOT=/tmp/porchlight-stage ./bin/install.sh
 ```
 
 ## Health Check
@@ -177,7 +183,7 @@ mock bridge output.
 `/etc/porchlight/update-manifest.json` unless `UPDATE_MANIFEST_FILE` is set.
 
 ```json
-{"version":"0.1.0","archive":"/path/to/porchlight-0.1.0.tar.gz","sha256":"..."}
+{"version":"0.1.0","artifact_url":"/path/to/porchlight-0.1.0.tar.gz","sha256":"..."}
 ```
 
 The updater verifies SHA256, installs the new release, runs `doctor.sh`, and
@@ -216,6 +222,7 @@ This writes:
 - `dist/porchlight-0.1.0/`
 - `dist/porchlight-0.1.0.tar.gz`
 - `dist/porchlight-0.1.0.tar.gz.sha256`
+- `dist/install.sh`
 - `dist/manifest.json`
 
 ## Self-Certification
@@ -235,4 +242,4 @@ This writes:
 | MPL atoms documented | PASS | `muster.yaml`, `MUSTER.md`, and this README name the relevant MPL patterns |
 | README self-certifies compliance | PASS | this table |
 | tests current | PASS | `make test` |
-| package current | PASS | `make package` |
+| package and release assets current | PASS | `make package` writes `dist/install.sh`, `dist/manifest.json`, tarball, and SHA256 |

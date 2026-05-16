@@ -116,7 +116,7 @@ class MusterLifecycleTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             stage = Path(tmp)
             env = os.environ.copy()
-            env["STAGE_ROOT"] = str(stage)
+            env["MUSTER_ROOT"] = str(stage)
 
             install = subprocess.run(
                 [str(ROOT / "bin/install.sh")],

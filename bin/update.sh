@@ -18,11 +18,14 @@ if [ ! -f "$MANIFEST_FILE" ]; then
 fi
 
 version=$(json_field version "$MANIFEST_FILE")
-archive=$(json_field archive "$MANIFEST_FILE")
+archive=$(json_field artifact_url "$MANIFEST_FILE")
+if [ -z "$archive" ]; then
+  archive=$(json_field archive "$MANIFEST_FILE")
+fi
 sha256=$(json_field sha256 "$MANIFEST_FILE")
 
 if [ -z "$version" ] || [ -z "$archive" ] || [ -z "$sha256" ]; then
-  printf '%s\n' "update manifest must include version, archive, and sha256" >&2
+  printf '%s\n' "update manifest must include version, artifact_url/archive, and sha256" >&2
   exit 1
 fi
 
@@ -68,7 +71,7 @@ if [ ! -d "$release_root" ]; then
   exit 1
 fi
 
-STAGE_ROOT="" "$release_root/bin/install.sh"
+MUSTER_ROOT="" "$release_root/bin/install.sh"
 
 if ! /opt/$PROJECT/current/bin/doctor.sh; then
   if [ -n "$previous" ]; then
