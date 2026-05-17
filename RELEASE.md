@@ -1,5 +1,10 @@
 # Release
 
+## 1.1.5
+
+- Linked the footer's Muster self-certification statement to the Muster
+  framework repository so the certification claim is explainable from the UI.
+
 ## 1.1.4
 
 - Added defensive text wrapping for unusually long hostnames in hero headings,
