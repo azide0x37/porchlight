@@ -25,7 +25,7 @@ MQTT_KEYS = (
 )
 
 DEFAULT_MQTT = {
-    "HA_MQTT_ENABLE": "0",
+    "HA_MQTT_ENABLE": "1",
     "MQTT_HOST": "127.0.0.1",
     "MQTT_PORT": "1883",
     "MQTT_USERNAME": "",

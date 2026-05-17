@@ -136,7 +136,7 @@ class Bridge:
         self.bridge_state_dir = Path(os.environ.get("HA_BRIDGE_STATE_DIR", self.root / "var/lib/muster/home-assistant-mqtt-bridge"))
         self.outbox_dir = Path(os.environ.get("HA_MQTT_OUTBOX_DIR", self.bridge_runtime_dir / "mqtt-outbox"))
         self.control_dir = Path(os.environ.get("HA_MQTT_CONTROL_DIR", self.bridge_runtime_dir / "mqtt-control"))
-        self.mqtt_enable = os.environ.get("HA_MQTT_ENABLE", "0") == "1"
+        self.mqtt_enable = os.environ.get("HA_MQTT_ENABLE", "1") == "1"
         self.mqtt_host = os.environ.get("MQTT_HOST", "127.0.0.1")
         self.mqtt_port = os.environ.get("MQTT_PORT", "1883")
         self.mqtt_username = os.environ.get("MQTT_USERNAME", "")

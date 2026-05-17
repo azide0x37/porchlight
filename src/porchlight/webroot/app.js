@@ -749,7 +749,7 @@ function renderSettings() {
   const wifi = state.setupStatus.wifi || {};
   const setupMode = setup.appliance_mode && !setup.setup_complete;
   return `<div class="stack">
-    <section class="hero">
+    <section class="hero settings-hero">
       <p class="eyebrow">${setupMode ? "First-boot setup" : "Settings"}</p>
       <h1>Connect Porchlight to Home Assistant.</h1>
       <p>${mqtt.enabled ? "Home Assistant MQTT discovery is enabled." : "Home Assistant MQTT discovery is disabled until broker settings are saved."}</p>

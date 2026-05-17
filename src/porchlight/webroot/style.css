@@ -774,9 +774,17 @@ h3 {
 .stat-value {
   position: relative;
   z-index: 1;
+  max-width: 100%;
   margin-top: 0.72rem;
   font-size: clamp(2.15rem, 5vw, 3rem);
   line-height: 1;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.settings-hero .stat-value {
+  font-size: clamp(1.35rem, 2.5vw, 2rem);
+  line-height: 1.1;
 }
 
 .stat-hint,
@@ -790,6 +798,7 @@ h3 {
   z-index: 1;
   margin-top: 0.35rem;
   font-size: 0.82rem;
+  overflow-wrap: anywhere;
 }
 
 .scan-pill,

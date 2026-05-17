@@ -178,12 +178,11 @@ It always writes mockable MQTT artifacts under:
 - `/run/muster/home-assistant-mqtt-bridge/mqtt-outbox`
 - `/run/muster/home-assistant-mqtt-bridge/mqtt-control`
 
-Real broker publishing is disabled by default. Enable it in
-`/etc/porchlight/porchlight.mqtt.env` with `HA_MQTT_ENABLE=1` after reviewing
-the outbox payloads, or use the dashboard Settings view to write the broker
-host, port, credentials, discovery prefix, node ID, and base topic. The adapter
-is `mosquitto_pub`, and the dashboard never returns the stored MQTT password
-after saving it.
+Home Assistant MQTT discovery is enabled by default for appliance setup. Use
+`/etc/porchlight/porchlight.mqtt.env` or the dashboard Settings view to write
+the broker host, port, credentials, discovery prefix, node ID, and base topic.
+The adapter is `mosquitto_pub`, and the dashboard never returns the stored MQTT
+password after saving it.
 
 ## Appliance Setup
 

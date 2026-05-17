@@ -19,7 +19,7 @@ shell commands.
 ## Broker Credentials
 
 MQTT settings live in `/etc/porchlight/porchlight.mqtt.env`, installed with mode
-`0600`. Real broker publishing is disabled until `HA_MQTT_ENABLE=1`. The web
+`0600`. Discovery publishing is enabled by default for appliance setup. The web
 setup API can update broker settings, but responses only report whether a
 password is set; they never return `MQTT_PASSWORD`.
 

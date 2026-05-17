@@ -17,6 +17,11 @@ from porchlight.settings import atomic_write_env, masked_mqtt_settings, update_m
 
 
 class SettingsFileTest(unittest.TestCase):
+    def test_mqtt_discovery_defaults_enabled(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            masked = masked_mqtt_settings(Path(tmp))
+            self.assertTrue(masked["enabled"])
+
     def test_mqtt_update_preserves_unknown_keys_and_masks_password(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_dir = Path(tmp)
