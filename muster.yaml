@@ -145,7 +145,7 @@ compliance:
     doctor: bin/doctor.sh
     render_units: bin/render-units.sh
   generated_artifacts:
-    - dist/porchlight-1.1.3
-    - dist/porchlight-1.1.3.tar.gz
-    - dist/porchlight-1.1.3.tar.gz.sha256
+    - dist/porchlight-1.1.4
+    - dist/porchlight-1.1.4.tar.gz
+    - dist/porchlight-1.1.4.tar.gz.sha256
     - dist/manifest.json

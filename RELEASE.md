@@ -1,5 +1,12 @@
 # Release
 
+## 1.1.4
+
+- Added defensive text wrapping for unusually long hostnames in hero headings,
+  analysis text, cards, and chip lists so device names cannot force horizontal
+  overflow.
+- Added the active Porchlight version and GitHub repository link to the footer.
+
 ## 1.1.3
 
 - Tightened the animated brand `i` glyph height so the header wordmark does

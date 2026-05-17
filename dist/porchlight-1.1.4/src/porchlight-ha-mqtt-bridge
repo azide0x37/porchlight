@@ -1,0 +1,396 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+PROJECT = "porchlight"
+DEFAULT_VERSION = "0.4.0"
+
+
+def load_env_file(path):
+    if not path or not Path(path).is_file():
+        return
+    for raw_line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        prog="porchlight-ha-mqtt-bridge",
+        description="Publish Porchlight Home Assistant MQTT discovery/state and process scoped controls.",
+    )
+    parser.add_argument("--apply", action="store_true", help="Use real appliance paths and optionally publish to MQTT")
+    parser.add_argument("--discover", action="store_true", help="Publish discovery only")
+    parser.add_argument("--state", action="store_true", help="Publish state only")
+    parser.add_argument("--control", action="store_true", help="Process file-backed controls only")
+    parser.add_argument("--once", action="store_true", help="Publish discovery, state, availability, enabled state, and controls")
+    return parser.parse_args()
+
+
+def read_json(path):
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def write_json(path, payload):
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n", encoding="utf-8")
+
+
+def bool_on(value):
+    if isinstance(value, bool):
+        return "ON" if value else "OFF"
+    if isinstance(value, (int, float)):
+        return "ON" if value else "OFF"
+    text = str(value).strip().lower()
+    return "ON" if text in {"1", "true", "yes", "on", "online", "healthy", "changed"} else "OFF"
+
+
+def first_value(*values, default=None):
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return default
+
+
+def nested(data, *keys):
+    cur = data
+    for key in keys:
+        if not isinstance(cur, dict) or key not in cur:
+            return None
+        cur = cur[key]
+    return cur
+
+
+def list_count(value):
+    if isinstance(value, list):
+        return len(value)
+    if isinstance(value, dict):
+        return len(value)
+    if isinstance(value, int):
+        return value
+    return None
+
+
+def category_count(services, category):
+    if not isinstance(services, list):
+        return None
+    return sum(1 for service in services if isinstance(service, dict) and service.get("category") == category)
+
+
+def latest_www_json(www_dir):
+    candidates = sorted(Path(www_dir).glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for candidate in candidates:
+        data = read_json(candidate)
+        if data:
+            return data
+    return {}
+
+
+def topic_file(topic):
+    return topic.replace("/", "_").replace("+", "_")
+
+
+class Bridge:
+    def __init__(self, apply):
+        self.apply = apply
+        if apply:
+            load_env_file(os.environ.get("CONFIG_FILE", "/etc/porchlight/porchlight.env"))
+            load_env_file(os.environ.get("MQTT_CONFIG_FILE", "/etc/porchlight/porchlight.mqtt.env"))
+            self.root = Path("/")
+            self.porchlight_state_dir = Path(os.environ.get("PORCHLIGHT_STATE_DIR", "/run/porchlight"))
+            self.muster_state_dir = Path(os.environ.get("MUSTER_STATE_DIR", "/run/muster"))
+            self.www_dir = Path(os.environ.get("PORCHLIGHT_WWW_DIR", "/var/lib/porchlight/www"))
+            self.config_dir = Path(os.environ.get("PORCHLIGHT_CONFIG_DIR", "/etc/porchlight"))
+            self.version_file = Path(os.environ.get("VERSION_FILE", "/opt/porchlight/current/VERSION"))
+        else:
+            self.root = Path(os.environ.get("MUSTER_MOCK_ROOT") or os.environ.get("PORCHLIGHT_MOCK_ROOT") or f"{os.environ.get('TMPDIR', '/tmp')}/porchlight-mock")
+            self.porchlight_state_dir = Path(os.environ.get("PORCHLIGHT_STATE_DIR", self.root / "run/porchlight"))
+            self.muster_state_dir = Path(os.environ.get("MUSTER_STATE_DIR", self.root / "run/muster"))
+            self.www_dir = Path(os.environ.get("PORCHLIGHT_WWW_DIR", self.root / "var/lib/porchlight/www"))
+            self.config_dir = Path(os.environ.get("PORCHLIGHT_CONFIG_DIR", self.root / "etc/porchlight"))
+            self.version_file = Path(os.environ.get("VERSION_FILE", "VERSION"))
+
+        self.discovery_prefix = os.environ.get("HA_DISCOVERY_PREFIX", "homeassistant")
+        self.node_id = os.environ.get("HA_NODE_ID", "porchlight")
+        self.device_name = os.environ.get("HA_DEVICE_NAME", "Porchlight LAN Directory")
+        self.base_topic = os.environ.get("HA_BASE_TOPIC", "porchlight")
+        self.bridge_runtime_dir = Path(os.environ.get("HA_BRIDGE_RUNTIME_DIR", self.muster_state_dir / "home-assistant-mqtt-bridge"))
+        self.bridge_state_dir = Path(os.environ.get("HA_BRIDGE_STATE_DIR", self.root / "var/lib/muster/home-assistant-mqtt-bridge"))
+        self.outbox_dir = Path(os.environ.get("HA_MQTT_OUTBOX_DIR", self.bridge_runtime_dir / "mqtt-outbox"))
+        self.control_dir = Path(os.environ.get("HA_MQTT_CONTROL_DIR", self.bridge_runtime_dir / "mqtt-control"))
+        self.mqtt_enable = os.environ.get("HA_MQTT_ENABLE", "0") == "1"
+        self.mqtt_host = os.environ.get("MQTT_HOST", "127.0.0.1")
+        self.mqtt_port = os.environ.get("MQTT_PORT", "1883")
+        self.mqtt_username = os.environ.get("MQTT_USERNAME", "")
+        self.mqtt_password = os.environ.get("MQTT_PASSWORD", "")
+        self.mqtt_timeout = int(os.environ.get("MQTT_PUBLISH_TIMEOUT_SECONDS", "5"))
+        self.mosquitto_pub = os.environ.get("MOSQUITTO_PUB", "mosquitto_pub")
+        self.publish_failed = False
+
+        self.outbox_dir.mkdir(parents=True, exist_ok=True)
+        self.control_dir.mkdir(parents=True, exist_ok=True)
+        self.bridge_state_dir.mkdir(parents=True, exist_ok=True)
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+
+    def version(self):
+        if self.version_file.is_file():
+            return self.version_file.read_text(encoding="utf-8").strip() or DEFAULT_VERSION
+        return DEFAULT_VERSION
+
+    def publish(self, topic, payload, retain=False):
+        if not isinstance(payload, str):
+            payload = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+        file_path = self.outbox_dir / f"{topic_file(topic)}.json"
+        file_path.write_text(payload + "\n", encoding="utf-8")
+        with (self.outbox_dir / "topics.log").open("a", encoding="utf-8") as log:
+            log.write(f"{topic}\t{file_path}\tretain={1 if retain else 0}\n")
+
+        if not (self.apply and self.mqtt_enable):
+            return
+        if shutil.which(self.mosquitto_pub) is None:
+            print(f"mqtt publish failed: {self.mosquitto_pub} is not installed or not executable", file=sys.stderr)
+            self.publish_failed = True
+            return
+        cmd = [self.mosquitto_pub, "-h", self.mqtt_host, "-p", self.mqtt_port, "-t", topic, "-m", payload]
+        if retain:
+            cmd.append("-r")
+        if self.mqtt_username:
+            cmd.extend(["-u", self.mqtt_username, "-P", self.mqtt_password])
+        try:
+            subprocess.run(cmd, check=True, timeout=self.mqtt_timeout)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            print(f"mqtt publish failed: topic={topic} host={self.mqtt_host} port={self.mqtt_port}", file=sys.stderr)
+            self.publish_failed = True
+
+    def discovery_payload(self):
+        state_topic = f"{self.base_topic}/state"
+        enabled_state_topic = f"{self.base_topic}/enabled/state"
+        device = {
+            "identifiers": [self.node_id],
+            "name": self.device_name,
+            "manufacturer": "Muster",
+            "model": "Raspberry Pi Zero W LAN Directory Appliance",
+            "sw_version": self.version(),
+        }
+        components = {
+            "health": self.sensor("Health", "health", state_topic),
+            "scan_state": self.sensor("Scan State", "scan_state", state_topic),
+            "last_scan": self.sensor("Last Scan", "last_scan", state_topic, device_class="timestamp"),
+            "hosts_seen": self.sensor("Hosts Seen", "hosts_seen", state_topic),
+            "active_hosts": self.sensor("Active Hosts", "active_hosts", state_topic),
+            "open_ports": self.sensor("Open Ports", "open_ports", state_topic),
+            "http_services": self.sensor("HTTP Services", "http_services", state_topic),
+            "rtsp_services": self.sensor("RTSP Services", "rtsp_services", state_topic),
+            "mqtt_services": self.sensor("MQTT Services", "mqtt_services", state_topic),
+            "internal_services": self.sensor("Internal Services", "internal_services", state_topic),
+            "new_hosts": self.sensor("New Hosts", "new_hosts", state_topic),
+            "changed_services": self.sensor("Changed Services", "changed_services", state_topic),
+            "network_cidr": self.sensor("Network CIDR", "network_cidr", state_topic),
+            "gateway": self.sensor("Gateway", "gateway", state_topic),
+            "scanner_online": self.binary_sensor("Scanner Online", "scanner_online", state_topic, device_class="connectivity"),
+            "degraded": self.binary_sensor("Degraded", "degraded", state_topic, device_class="problem"),
+            "changes_detected": self.binary_sensor("Changes Detected", "changes_detected", state_topic),
+            "enabled": {
+                "platform": "switch",
+                "name": "Enabled",
+                "unique_id": f"{self.node_id}_enabled",
+                "state_topic": enabled_state_topic,
+                "command_topic": f"{self.base_topic}/cmd/enabled/set",
+                "payload_on": "ON",
+                "payload_off": "OFF",
+            },
+            "scan_now": self.button("Scan Now", "scan_now"),
+            "deep_scan": self.button("Deep Scan", "deep_scan"),
+            "restart_service": self.button("Restart Service", "restart"),
+        }
+        return {
+            "device": device,
+            "origin": {"name": "Porchlight", "sw_version": self.version()},
+            "availability": {"topic": f"{self.base_topic}/availability"},
+            "state_topic": state_topic,
+            "components": components,
+        }
+
+    def sensor(self, name, key, state_topic, device_class=None):
+        payload = {
+            "platform": "sensor",
+            "name": name,
+            "unique_id": f"{self.node_id}_{key}",
+            "state_topic": state_topic,
+            "value_template": "{{ value_json." + key + " }}",
+        }
+        if device_class:
+            payload["device_class"] = device_class
+        return payload
+
+    def binary_sensor(self, name, key, state_topic, device_class=None):
+        payload = {
+            "platform": "binary_sensor",
+            "name": name,
+            "unique_id": f"{self.node_id}_{key}",
+            "state_topic": state_topic,
+            "value_template": "{{ value_json." + key + " }}",
+            "payload_on": "ON",
+            "payload_off": "OFF",
+        }
+        if device_class:
+            payload["device_class"] = device_class
+        return payload
+
+    def button(self, name, command):
+        return {
+            "platform": "button",
+            "name": name,
+            "unique_id": f"{self.node_id}_{command if command != 'restart' else 'restart_service'}",
+            "command_topic": f"{self.base_topic}/cmd/{command}",
+            "payload_press": "PRESS",
+        }
+
+    def publish_discovery(self):
+        topic = f"{self.discovery_prefix}/device/{self.node_id}/config"
+        payload = self.discovery_payload()
+        write_json(self.bridge_state_dir / "discovery.json", payload)
+        self.publish(topic, payload, retain=True)
+
+    def state_payload(self):
+        porch = read_json(self.porchlight_state_dir / "status.json")
+        muster = read_json(self.muster_state_dir / "status.json")
+        web = latest_www_json(self.www_dir)
+        hosts = first_value(porch.get("hosts"), web.get("hosts"), nested(web, "directory", "hosts"), default=[])
+        services = first_value(porch.get("services"), web.get("services"), nested(web, "directory", "services"), default=[])
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+        health = first_value(porch.get("health"), muster.get("health"), web.get("health"), default="unknown")
+        scan_state = first_value(porch.get("scan_state"), porch.get("state"), web.get("scan_state"), default="idle")
+        degraded = first_value(porch.get("degraded"), muster.get("degraded"), web.get("degraded"), default=(health not in {"healthy", "ok"}))
+        changes = first_value(porch.get("changes_detected"), web.get("changes_detected"), porch.get("changed"), default=False)
+
+        return {
+            "health": health,
+            "scan_state": scan_state,
+            "last_scan": first_value(porch.get("last_scan"), porch.get("last_scan_at"), web.get("last_scan"), default=now),
+            "network_cidr": first_value(porch.get("network_cidr"), porch.get("cidr"), web.get("network_cidr"), default="unknown"),
+            "gateway": first_value(porch.get("gateway"), web.get("gateway"), default="unknown"),
+            "hosts_seen": int(first_value(porch.get("hosts_seen"), web.get("hosts_seen"), list_count(hosts), default=0)),
+            "active_hosts": int(first_value(porch.get("active_hosts"), web.get("active_hosts"), default=0)),
+            "open_ports": int(first_value(porch.get("open_ports"), web.get("open_ports"), list_count(services), default=0)),
+            "http_services": int(first_value(porch.get("http_services"), web.get("http_services"), category_count(services, "http"), default=0)),
+            "rtsp_services": int(first_value(porch.get("rtsp_services"), web.get("rtsp_services"), category_count(services, "rtsp"), default=0)),
+            "mqtt_services": int(first_value(porch.get("mqtt_services"), web.get("mqtt_services"), category_count(services, "mqtt"), default=0)),
+            "internal_services": int(first_value(porch.get("internal_services"), web.get("internal_services"), category_count(services, "internal"), default=0)),
+            "new_hosts": int(first_value(porch.get("new_hosts"), web.get("new_hosts"), default=0)),
+            "changed_services": int(first_value(porch.get("changed_services"), web.get("changed_services"), default=0)),
+            "scanner_online": bool_on(first_value(porch.get("scanner_online"), muster.get("scanner_online"), default=True)),
+            "degraded": bool_on(degraded),
+            "changes_detected": bool_on(changes),
+        }
+
+    def enabled_state(self):
+        enabled_file = self.config_dir / "enabled"
+        if enabled_file.is_file():
+            text = enabled_file.read_text(encoding="utf-8").strip().lower()
+            return "OFF" if text in {"0", "false", "off", "no", "disabled"} else "ON"
+        env_value = os.environ.get("PORCHLIGHT_ENABLED", "1")
+        return bool_on(env_value)
+
+    def publish_state(self):
+        payload = self.state_payload()
+        write_json(self.bridge_state_dir / "state.json", payload)
+        self.publish(f"{self.base_topic}/availability", "online", retain=True)
+        self.publish(f"{self.base_topic}/state", payload, retain=False)
+        self.publish(f"{self.base_topic}/enabled/state", self.enabled_state(), retain=True)
+
+    def run_systemctl(self, args):
+        if not self.apply:
+            with (self.control_dir / "control-actions.log").open("a", encoding="utf-8") as log:
+                log.write("systemctl " + " ".join(args) + "\n")
+            return True
+        try:
+            subprocess.run(["systemctl", *args], check=True, timeout=20)
+            return True
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            print(f"control action failed: systemctl {' '.join(args)}: {exc}", file=sys.stderr)
+            return False
+
+    def process_controls(self):
+        controls = {
+            "enabled": {"payloads": {"ON", "OFF"}},
+            "scan_now": {"payloads": {"PRESS"}},
+            "deep_scan": {"payloads": {"PRESS"}},
+            "restart": {"payloads": {"PRESS"}},
+        }
+        for name, spec in controls.items():
+            path = self.control_dir / f"{name}.cmd"
+            if not path.exists():
+                continue
+            payload = path.read_text(encoding="utf-8").strip()
+            if payload not in spec["payloads"]:
+                path.rename(path.with_suffix(".cmd.rejected"))
+                self.publish_result(name, "rejected", payload)
+                continue
+            ok = self.apply_control(name, payload)
+            suffix = ".cmd.processed" if ok else ".cmd.failed"
+            path.rename(path.with_suffix(suffix))
+            self.publish_result(name, "processed" if ok else "failed", payload)
+            if name == "enabled" and ok:
+                self.publish(f"{self.base_topic}/enabled/state", payload, retain=True)
+
+    def apply_control(self, name, payload):
+        if name == "enabled":
+            target = self.config_dir / "enabled"
+            target.write_text(("true" if payload == "ON" else "false") + "\n", encoding="utf-8")
+            return True
+        if name == "scan_now":
+            return self.run_systemctl(["start", "porchlight-scan.service"])
+        if name == "deep_scan":
+            return self.run_systemctl(["start", "porchlight-deep-scan.service"])
+        if name == "restart":
+            return self.run_systemctl(["restart", "porchlight-web.service", "porchlight-health.service"])
+        return False
+
+    def publish_result(self, command, status, payload):
+        result = {
+            "command": command,
+            "status": status,
+            "payload": payload,
+            "at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+        write_json(self.bridge_state_dir / "control-result.json", result)
+        self.publish(f"{self.base_topic}/control/result", result, retain=False)
+
+
+def main():
+    args = parse_args()
+    if not (args.discover or args.state or args.control or args.once):
+        args.once = True
+
+    bridge = Bridge(args.apply)
+    if args.once or args.discover:
+        bridge.publish_discovery()
+    if args.once or args.state:
+        bridge.publish_state()
+    if args.once or args.control:
+        bridge.process_controls()
+    return 1 if bridge.publish_failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
