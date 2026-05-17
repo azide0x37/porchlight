@@ -748,9 +748,27 @@ function renderSettings() {
   const mqtt = state.setupStatus.mqtt || {};
   const wifi = state.setupStatus.wifi || {};
   const setupMode = setup.appliance_mode && !setup.setup_complete;
-  return `<div class="stack">
-    <section class="hero settings-hero">
-      <p class="eyebrow">${setupMode ? "First-boot setup" : "Settings"}</p>
+  const networks = Array.isArray(wifi.networks) ? wifi.networks : [];
+  const wifiNetworkOptions = networks
+    .map((network) => `<option value="${escapeHtml(network.ssid)}">${escapeHtml(network.ssid)}${network.signal == null ? "" : ` - ${escapeHtml(network.signal)}%`}${network.security ? ` - ${escapeHtml(network.security)}` : ""}</option>`)
+    .join("");
+  const wifiWizard = setupMode ? `<section class="hero setup-wizard">
+      <p class="eyebrow">First-boot setup</p>
+      <h1>Connect Porchlight to Wi-Fi.</h1>
+      <p>Join your home network first. Home Assistant MQTT settings are below when you are ready.</p>
+      <form class="settings-form wifi-first" id="wifi-settings">
+        <label><span>Found networks</span><select name="ssid_choice"><option value="">Other or hidden SSID</option>${wifiNetworkOptions}</select></label>
+        <label><span>Other or hidden SSID</span><input name="ssid" autocomplete="off"></label>
+        <label><span>Password</span><input name="password" type="password" autocomplete="current-password"></label>
+        <div class="form-actions">
+          <button type="submit">Connect Wi-Fi</button>
+          <button type="button" data-action="finish-setup">Finish setup</button>
+        </div>
+        <p class="form-result" id="wifi-result" role="status">${escapeHtml(wifi.message || "")}</p>
+      </form>
+    </section>` : "";
+  const settingsHero = setupMode ? "" : `<section class="hero settings-hero">
+      <p class="eyebrow">Settings</p>
       <h1>Connect Porchlight to Home Assistant.</h1>
       <p>${mqtt.enabled ? "Home Assistant MQTT discovery is enabled." : "Home Assistant MQTT discovery is disabled until broker settings are saved."}</p>
       <div class="stats">
@@ -759,7 +777,10 @@ function renderSettings() {
         ${stat("Wi-Fi", wifi.connected ? "Connected" : "Not connected", wifi.ssid || wifi.message || "setup AP available", "var(--porch-leaf)")}
         ${stat("Address", setup.mdns_name || "porchlight.local", setup.setup_ssid || "local dashboard", "var(--porch-clay)")}
       </div>
-    </section>
+    </section>`;
+  return `<div class="stack">
+    ${wifiWizard}
+    ${settingsHero}
     <section class="section">
       ${sectionHead("Home Assistant", "MQTT broker")}
       <form class="settings-form" id="mqtt-settings">
@@ -779,18 +800,6 @@ function renderSettings() {
         <p class="form-result" id="mqtt-result" role="status"></p>
       </form>
     </section>
-    ${setupMode ? `<section class="section">
-      ${sectionHead("Network", "Wi-Fi")}
-      <form class="settings-form" id="wifi-settings">
-        <label><span>SSID</span><input name="ssid" autocomplete="off"></label>
-        <label><span>Password</span><input name="password" type="password" autocomplete="current-password"></label>
-        <div class="form-actions">
-          <button type="submit">Connect Wi-Fi</button>
-          <button type="button" data-action="finish-setup">Finish setup</button>
-        </div>
-        <p class="form-result" id="wifi-result" role="status"></p>
-      </form>
-    </section>` : ""}
   </div>`;
 }
 
@@ -876,6 +885,9 @@ function formPayload(form) {
     payload.enabled = form.elements.enabled.checked;
     payload.port = Number(payload.port || 1883);
     if (!payload.password) delete payload.password;
+  } else if (form.id === "wifi-settings") {
+    payload.ssid = String(payload.ssid_choice || payload.ssid || "").trim();
+    delete payload.ssid_choice;
   }
   return payload;
 }

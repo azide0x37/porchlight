@@ -3,6 +3,6 @@
   "version": "2.0.0",
   "artifact": "porchlight-2.0.0.tar.gz",
   "artifact_url": "https://github.com/azide0x37/porchlight/releases/download/v2.0.0/porchlight-2.0.0.tar.gz",
-  "sha256": "23145200dd58b82ed808ae1367e07533e1ccc7c4b8b5565c54179f06ca8ba99f",
+  "sha256": "24c85ea74bc2f8a4e665f1282d7ff83931646aded6f3fe04bd717cc60da4f6ef",
   "installer": "install.sh"
 }

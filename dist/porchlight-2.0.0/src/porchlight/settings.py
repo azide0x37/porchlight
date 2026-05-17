@@ -214,6 +214,58 @@ def wifi_status() -> dict[str, object]:
     return {"available": True, "connected": False, "ssid": "", "message": ""}
 
 
+def wifi_networks() -> list[dict[str, object]]:
+    mock = os.environ.get("PORCHLIGHT_MOCK_WIFI_SSIDS", "")
+    if mock:
+        return [{"ssid": ssid.strip(), "signal": None, "security": ""} for ssid in mock.split(",") if ssid.strip()]
+    if not shutil_which("nmcli"):
+        return []
+    result = subprocess.run(
+        ["nmcli", "-t", "-f", "ssid,signal,security", "dev", "wifi", "list", "--rescan", "yes"],
+        text=True,
+        capture_output=True,
+        timeout=12,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    networks: dict[str, dict[str, object]] = {}
+    for line in result.stdout.splitlines():
+        ssid, signal, security = split_nmcli_fields(line)
+        if not ssid:
+            continue
+        try:
+            parsed_signal = int(signal)
+        except ValueError:
+            parsed_signal = None
+        existing = networks.get(ssid)
+        if existing and parsed_signal is not None and existing.get("signal") is not None and int(existing["signal"]) >= parsed_signal:
+            continue
+        networks[ssid] = {"ssid": ssid, "signal": parsed_signal, "security": security}
+    return sorted(networks.values(), key=lambda item: (-(item.get("signal") or 0), str(item.get("ssid") or "")))
+
+
+def split_nmcli_fields(line: str) -> tuple[str, str, str]:
+    fields: list[str] = []
+    current = []
+    escaped = False
+    for char in line:
+        if escaped:
+            current.append(char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == ":" and len(fields) < 2:
+            fields.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    fields.append("".join(current))
+    while len(fields) < 3:
+        fields.append("")
+    return fields[0], fields[1], fields[2]
+
+
 def shutil_which(name: str) -> str | None:
     for directory in os.environ.get("PATH", "").split(os.pathsep):
         candidate = Path(directory) / name

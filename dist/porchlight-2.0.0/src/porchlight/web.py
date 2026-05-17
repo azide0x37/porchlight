@@ -18,6 +18,7 @@ from .settings import (
     validate_host,
     validate_port,
     validate_topic_part,
+    wifi_networks,
     wifi_status,
 )
 
@@ -96,8 +97,13 @@ class PorchlightHTTPServer(ThreadingHTTPServer):
         return {
             "setup": setup_status(self.config.config_dir),
             "mqtt": masked_mqtt_settings(self.config.config_dir),
-            "wifi": wifi_status() if self.apply else {"available": False, "connected": False, "ssid": "", "message": "mock mode"},
+            "wifi": self.wifi_payload(),
         }
+
+    def wifi_payload(self) -> dict[str, object]:
+        payload = wifi_status() if self.apply else {"available": False, "connected": False, "ssid": "", "message": "mock mode"}
+        payload["networks"] = wifi_networks()
+        return payload
 
     def configure_wifi(self, payload: dict[str, object]) -> dict[str, object]:
         status = setup_status(self.config.config_dir)

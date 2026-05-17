@@ -8,12 +8,13 @@ import time
 import unittest
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from porchlight.settings import atomic_write_env, masked_mqtt_settings, update_mqtt_settings
+from porchlight.settings import atomic_write_env, masked_mqtt_settings, split_nmcli_fields, update_mqtt_settings, wifi_networks
 
 
 class SettingsFileTest(unittest.TestCase):
@@ -57,6 +58,13 @@ class SettingsFileTest(unittest.TestCase):
                 update_mqtt_settings(Path(tmp), {"host": "bad host"})
             with self.assertRaises(ValueError):
                 update_mqtt_settings(Path(tmp), {"port": 70000})
+
+    def test_mock_wifi_networks_feed_setup_dropdown(self):
+        with mock.patch.dict("os.environ", {"PORCHLIGHT_MOCK_WIFI_SSIDS": "Kitchen WiFi,Hidden Candidate"}, clear=False):
+            self.assertEqual([item["ssid"] for item in wifi_networks()], ["Kitchen WiFi", "Hidden Candidate"])
+
+    def test_nmcli_field_parser_handles_escaped_colons(self):
+        self.assertEqual(split_nmcli_fields(r"Kitchen\:IoT:82:WPA2"), ("Kitchen:IoT", "82", "WPA2"))
 
     def test_atomic_write_keeps_comments(self):
         with tempfile.TemporaryDirectory() as tmp:

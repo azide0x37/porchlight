@@ -249,7 +249,8 @@ a {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -1041,7 +1042,8 @@ h3 {
   text-transform: uppercase;
 }
 
-.settings-form input {
+.settings-form input,
+.settings-form select {
   width: 100%;
   min-width: 0;
   padding: 0.62rem 0.72rem;
@@ -1053,6 +1055,18 @@ h3 {
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
+}
+
+.setup-wizard {
+  gap: 1.35rem;
+}
+
+.setup-wizard h1 {
+  max-width: 42rem;
+}
+
+.wifi-first {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .settings-form input[type="checkbox"] {
