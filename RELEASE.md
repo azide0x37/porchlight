@@ -1,5 +1,12 @@
 # Release
 
+## 1.1.1
+
+- Made overview service cards and the environment analysis derive service
+  counts from `services.json` when it is present, so the overview cannot show
+  zero ports while the protocols view lists indexed services.
+- Matched the reference MQTT/RTSP stat separator with the middle dot glyph.
+
 ## 1.1.0
 
 - Corrected dashboard display typography to use the reference font weights for

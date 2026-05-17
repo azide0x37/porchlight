@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nmaprun>
+  <host>
+    <address addr="192.168.17.100" addrtype="ipv4"/>
+    <address addr="ec:b5:fa:84:3b:e9" addrtype="mac"/>
+    <hostnames>
+      <hostname name="printer.local" type="PTR"/>
+    </hostnames>
+    <ports>
+      <port protocol="tcp" portid="22">
+        <state state="open"/>
+        <service name="ssh" product="OpenSSH" version="9.2p1"/>
+      </port>
+      <port protocol="tcp" portid="80">
+        <state state="closed"/>
+        <service name="http"/>
+      </port>
+    </ports>
+  </host>
+</nmaprun>

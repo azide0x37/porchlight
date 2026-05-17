@@ -199,6 +199,33 @@ function servicesForHost(ip) {
   return state.services.filter((service) => service.ip === ip);
 }
 
+function derivedServiceCounts() {
+  if (!state.services.length) {
+    return {
+      open_ports: number(state.status.open_ports),
+      http_services: number(state.status.http_services),
+      rtsp_services: number(state.status.rtsp_services),
+      mqtt_services: number(state.status.mqtt_services),
+      internal_services: number(state.status.internal_services),
+    };
+  }
+  const counts = {
+    open_ports: state.services.length,
+    http_services: 0,
+    rtsp_services: 0,
+    mqtt_services: 0,
+    internal_services: 0,
+  };
+  state.services.forEach((service) => {
+    const serviceCategory = category(service);
+    if (serviceCategory === "http") counts.http_services += 1;
+    else if (serviceCategory === "rtsp") counts.rtsp_services += 1;
+    else if (serviceCategory === "mqtt") counts.mqtt_services += 1;
+    else if (serviceCategory === "internal") counts.internal_services += 1;
+  });
+  return counts;
+}
+
 function hostsForService(name) {
   const ips = new Set(state.services.filter((service) => serviceName(service) === name).map((service) => service.ip));
   return state.hosts.filter((host) => ips.has(host.ip));
@@ -311,9 +338,10 @@ function sectionHead(eyebrow, title, aside = "") {
 
 function analysisForEnvironment() {
   const status = state.status;
+  const serviceCounts = derivedServiceCounts();
   const hostCount = number(status.hosts_seen);
   const active = number(status.active_hosts);
-  const openPorts = number(status.open_ports);
+  const openPorts = serviceCounts.open_ports;
   const changed = number(status.changed_services);
   const health = status.health || "unknown";
   const grade = health === "healthy" ? (changed ? "B" : "A") : "C";
@@ -323,7 +351,7 @@ function analysisForEnvironment() {
     headline: health === "healthy" ? "The porch is lit." : "The porch is partially lit.",
     summary: `${active} of ${hostCount} hosts answered the latest scan, with ${openPorts} open ports indexed. The scanner reports ${health}.`,
     highlights: [
-      `${number(status.http_services)} HTTP, ${number(status.rtsp_services)} RTSP, and ${number(status.mqtt_services)} MQTT services are visible.`,
+      `${serviceCounts.http_services} HTTP, ${serviceCounts.rtsp_services} RTSP, and ${serviceCounts.mqtt_services} MQTT services are visible.`,
       `The appliance rendered this snapshot ${relativeTime(status.last_scan)}.`,
     ],
     concerns: status.scan_blocked ? [status.scan_blocked] : changed ? [`${changed} services changed since the previous scan.`] : [],
@@ -409,6 +437,7 @@ function renderOverview() {
   const status = state.status;
   const protocols = uniqueProtocols();
   const categories = uniqueCategories();
+  const serviceCounts = derivedServiceCounts();
   const featured = state.hosts
     .filter((host) => host.status === "active")
     .sort((a, b) => servicesForHost(b.ip).length - servicesForHost(a.ip).length)
@@ -428,9 +457,9 @@ function renderOverview() {
       <p>${number(status.active_hosts)} of ${number(status.hosts_seen)} hosts answered the call. Last sweep ${relativeTime(status.last_scan)}. Scanner health is ${escapeHtml(status.health || "unknown")}.</p>
       <div class="stats">
         ${stat("Active hosts", number(status.active_hosts), `${Math.max(0, number(status.hosts_seen) - number(status.active_hosts))} dormant`, "var(--porch-leaf)")}
-        ${stat("Open ports", number(status.open_ports), `${number(status.changed_services)} changed`, "var(--porch-amber)")}
-        ${stat("HTTP services", number(status.http_services), `${number(status.internal_services)} internal`, "var(--porch-sky)")}
-        ${stat("MQTT - RTSP", `${number(status.mqtt_services)} - ${number(status.rtsp_services)}`, `${number(status.new_hosts)} new hosts`, "var(--porch-clay)")}
+        ${stat("Open ports", serviceCounts.open_ports, `${number(status.changed_services)} changed`, "var(--porch-amber)")}
+        ${stat("HTTP services", serviceCounts.http_services, `${serviceCounts.internal_services} internal`, "var(--porch-sky)")}
+        ${stat("MQTT · RTSP", `${serviceCounts.mqtt_services} · ${serviceCounts.rtsp_services}`, `${number(status.new_hosts)} new hosts`, "var(--porch-clay)")}
       </div>
     </section>
     <section class="section">
