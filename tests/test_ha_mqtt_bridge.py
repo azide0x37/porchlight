@@ -189,6 +189,41 @@ class MusterLifecycleTest(unittest.TestCase):
             self.assertEqual(purge.returncode, 0, purge.stderr)
             self.assertFalse((stage / "etc/porchlight").exists())
 
+    def test_staged_appliance_install_adds_setup_assets_without_purging_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stage = Path(tmp)
+            env = os.environ.copy()
+            env["MUSTER_ROOT"] = str(stage)
+
+            install = subprocess.run(
+                [str(ROOT / "bin/install.sh"), "--appliance"],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(install.returncode, 0, install.stderr)
+
+            version = (ROOT / "VERSION").read_text().strip()
+            current = stage / "opt/porchlight/current"
+            setup_env = stage / "etc/porchlight/setup.env"
+            self.assertTrue((stage / f"opt/porchlight/releases/{version}/bin/setup-ap.sh").is_file())
+            self.assertTrue((stage / f"opt/porchlight/releases/{version}/bin/setup-apply.sh").is_file())
+            self.assertTrue((stage / f"opt/porchlight/releases/{version}/systemd/porchlight-setup-ap.service").is_file())
+            self.assertTrue((stage / f"opt/porchlight/releases/{version}/systemd/porchlight-setup-apply.path").is_file())
+            self.assertIn("PORCHLIGHT_APPLIANCE_MODE=1", setup_env.read_text(encoding="utf-8"))
+
+            uninstall = subprocess.run(
+                [str(ROOT / "bin/uninstall.sh")],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(uninstall.returncode, 0, uninstall.stderr)
+            self.assertFalse(current.exists())
+            self.assertTrue(setup_env.is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

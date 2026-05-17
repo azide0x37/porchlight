@@ -1,0 +1,24 @@
+[Unit]
+Description=Porchlight local dashboard
+Documentation=file:/opt/porchlight/current/README.md
+After=network-online.target local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/porchlight/porchlight.env
+EnvironmentFile=-/etc/porchlight/setup.env
+ExecStart=/opt/porchlight/current/bin/porchlight-web --apply
+Restart=on-failure
+RestartSec=5s
+RuntimeDirectory=porchlight muster
+RuntimeDirectoryPreserve=yes
+StateDirectory=porchlight
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/porchlight /run/muster /var/lib/porchlight /etc/porchlight
+
+[Install]
+WantedBy=multi-user.target

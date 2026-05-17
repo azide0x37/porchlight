@@ -27,6 +27,9 @@ class MusterContractTest(unittest.TestCase):
             "porchlight-health.service",
             "porchlight-health.timer",
             "porchlight-web.service",
+            "porchlight-setup-ap.service",
+            "porchlight-setup-apply.service",
+            "porchlight-setup-apply.path",
         ]:
             self.assertTrue((ROOT / "systemd" / name).is_file(), name)
 
@@ -41,6 +44,8 @@ class MusterContractTest(unittest.TestCase):
             "updater verifies and rolls back",
             "make test",
             "make package",
+            "install.sh --appliance",
+            "/api/setup/*",
         ]:
             self.assertIn(text, readme)
 
@@ -56,6 +61,8 @@ class MusterContractTest(unittest.TestCase):
             "bin/doctor.sh",
             "make package",
             "src/porchlight/webroot",
+            "src/porchlight/settings.py",
+            "porchlight-setup-apply.path",
         ]:
             self.assertIn(text, muster)
 
@@ -79,6 +86,9 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("mosquitto-clients", install)
         self.assertIn("nmap", install)
         self.assertIn("arp-scan", install)
+        self.assertIn("network-manager", install)
+        self.assertIn("avahi-daemon", install)
+        self.assertIn("--appliance", install)
         self.assertIn("MUSTER_SKIP_PACKAGES", install)
         self.assertIn("HA_MQTT_ENABLE", doctor)
         self.assertIn("mqtt publish adapter available", doctor)
@@ -111,14 +121,17 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("Porchlight - LAN directory", index)
         self.assertIn("viewport-fit=cover", index)
         self.assertIn("apple-touch-icon", index)
-        self.assertIn("/style.css?v=1.1.5", index)
-        self.assertIn("/app.js?v=1.1.5", index)
-        self.assertIn("Porchlight v1.1.5", index)
+        self.assertIn("/style.css?v=2.0.0", index)
+        self.assertIn("/app.js?v=2.0.0", index)
+        self.assertIn("Porchlight v2.0.0", index)
         self.assertIn("https://github.com/azide0x37/muster", index)
         self.assertIn("https://github.com/azide0x37/porchlight", index)
         self.assertIn("/status.json", app)
         self.assertIn("/hosts.json", app)
         self.assertIn("/services.json", app)
+        self.assertIn("/api/setup/status", app)
+        self.assertIn("renderSettings", app)
+        self.assertIn("Save MQTT", app)
         self.assertIn("The porch is lit.", app)
         self.assertIn("derivedServiceCounts", app)
         self.assertIn("openPorts = serviceCounts.open_ports", app)
@@ -147,3 +160,5 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", style)
         self.assertIn("Cache-Control", web)
         self.assertIn("no-store", web)
+        self.assertIn("/api/setup/mqtt", web)
+        self.assertIn("update_mqtt_settings", web)

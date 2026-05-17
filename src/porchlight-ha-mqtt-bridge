@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 PROJECT = "porchlight"
-DEFAULT_VERSION = "0.4.0"
+DEFAULT_VERSION = "2.0.0"
 
 
 def load_env_file(path):

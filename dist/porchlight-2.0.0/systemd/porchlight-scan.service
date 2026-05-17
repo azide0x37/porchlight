@@ -1,0 +1,21 @@
+[Unit]
+Description=Porchlight LAN and Tailscale scan
+Documentation=file:/opt/porchlight/current/README.md
+After=network-online.target local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/porchlight/porchlight.env
+ExecStart=/opt/porchlight/current/bin/porchlight-scan --apply --mode scan
+TimeoutStartSec=8min
+RuntimeDirectory=porchlight muster
+RuntimeDirectoryPreserve=yes
+StateDirectory=porchlight
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/porchlight /run/muster /var/lib/porchlight
+RestrictAddressFamilies=AF_INET AF_INET6 AF_PACKET AF_NETLINK AF_UNIX
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN

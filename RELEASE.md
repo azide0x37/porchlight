@@ -1,5 +1,16 @@
 # Release
 
+## 2.0.0
+
+- Added no-SSH appliance onboarding for Raspberry Pi Zero 2 W images with an
+  optional first-boot setup access point.
+- Added dashboard settings for Home Assistant MQTT broker destination,
+  discovery topics, credentials, and test publishing.
+- Added constrained JSON setup APIs and file-backed settings writes that mask
+  MQTT passwords and preserve unknown config keys.
+- Added appliance-mode installer support for NetworkManager, Avahi, setup
+  systemd units, and setup completion.
+
 ## 1.1.5
 
 - Linked the footer's Muster self-certification statement to the Muster

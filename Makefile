@@ -9,7 +9,7 @@ TARBALL := $(DIST)/$(PROJECT)-$(VERSION).tar.gz
 
 test:
 	uv run python -m unittest discover -s tests
-	sh -n bin/install.sh bin/uninstall.sh bin/update.sh bin/doctor.sh bin/render-units.sh bin/scan-now.sh bin/porchlightctl
+	sh -n bin/install.sh bin/uninstall.sh bin/update.sh bin/doctor.sh bin/render-units.sh bin/scan-now.sh bin/porchlightctl bin/setup-ap.sh bin/setup-apply.sh
 	stage="$$(mktemp -d)"; MUSTER_ROOT="$$stage" ./bin/install.sh; MUSTER_ROOT="$$stage" ./bin/doctor.sh
 
 verify: test package

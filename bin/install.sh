@@ -15,6 +15,20 @@ TMP_DIR="${TMPDIR:-/tmp}/$PROJECT-install.$$"
 VERSION=""
 RELEASE_DIR=""
 CURRENT_LINK="$INSTALL_DIR/current"
+APPLIANCE_MODE=0
+
+while [ "${1:-}" ]; do
+  case "$1" in
+    --appliance)
+      APPLIANCE_MODE=1
+      ;;
+    *)
+      printf '%s\n' "usage: install.sh [--appliance]" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 cleanup() {
   rm -rf "$TMP_DIR"
@@ -82,7 +96,11 @@ install_packages() {
 
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
-    apt-get install -y curl ca-certificates mosquitto-clients nmap arp-scan
+    if [ "$APPLIANCE_MODE" = "1" ]; then
+      apt-get install -y curl ca-certificates mosquitto-clients nmap arp-scan network-manager avahi-daemon
+    else
+      apt-get install -y curl ca-certificates mosquitto-clients nmap arp-scan
+    fi
   else
     log "apt-get not found; skipping package install"
   fi
@@ -172,6 +190,8 @@ install_file "$SRC_ROOT/bin/uninstall.sh" "$RELEASE_DIR/bin/uninstall.sh" 0755
 install_file "$SRC_ROOT/bin/render-units.sh" "$RELEASE_DIR/bin/render-units.sh" 0755
 install_file "$SRC_ROOT/bin/scan-now.sh" "$RELEASE_DIR/bin/scan-now.sh" 0755
 install_file "$SRC_ROOT/bin/porchlightctl" "$RELEASE_DIR/bin/porchlightctl" 0755
+install_file "$SRC_ROOT/bin/setup-ap.sh" "$RELEASE_DIR/bin/setup-ap.sh" 0755
+install_file "$SRC_ROOT/bin/setup-apply.sh" "$RELEASE_DIR/bin/setup-apply.sh" 0755
 install_file "$SRC_ROOT/systemd/porchlight-ha-mqtt-bridge.service" "$RELEASE_DIR/systemd/porchlight-ha-mqtt-bridge.service" 0644
 install_file "$SRC_ROOT/systemd/porchlight-ha-mqtt-bridge.timer" "$RELEASE_DIR/systemd/porchlight-ha-mqtt-bridge.timer" 0644
 install_file "$SRC_ROOT/systemd/porchlight-scan.service" "$RELEASE_DIR/systemd/porchlight-scan.service" 0644
@@ -185,8 +205,12 @@ install_file "$SRC_ROOT/systemd/porchlight-render.timer" "$RELEASE_DIR/systemd/p
 install_file "$SRC_ROOT/systemd/porchlight-health.service" "$RELEASE_DIR/systemd/porchlight-health.service" 0644
 install_file "$SRC_ROOT/systemd/porchlight-health.timer" "$RELEASE_DIR/systemd/porchlight-health.timer" 0644
 install_file "$SRC_ROOT/systemd/porchlight-web.service" "$RELEASE_DIR/systemd/porchlight-web.service" 0644
+install_file "$SRC_ROOT/systemd/porchlight-setup-ap.service" "$RELEASE_DIR/systemd/porchlight-setup-ap.service" 0644
+install_file "$SRC_ROOT/systemd/porchlight-setup-apply.service" "$RELEASE_DIR/systemd/porchlight-setup-apply.service" 0644
+install_file "$SRC_ROOT/systemd/porchlight-setup-apply.path" "$RELEASE_DIR/systemd/porchlight-setup-apply.path" 0644
 install_file "$SRC_ROOT/etc/porchlight.env.example" "$RELEASE_DIR/etc/porchlight.env.example" 0644
 install_file "$SRC_ROOT/etc/porchlight.mqtt.env.example" "$RELEASE_DIR/etc/porchlight.mqtt.env.example" 0644
+install_file "$SRC_ROOT/etc/porchlight.setup.env.example" "$RELEASE_DIR/etc/porchlight.setup.env.example" 0644
 install_file "$SRC_ROOT/README.md" "$RELEASE_DIR/README.md" 0644
 install_file "$SRC_ROOT/README.md" "$RELEASE_DIR/doc/README.md" 0644
 install_file "$SRC_ROOT/AGENTS.md" "$RELEASE_DIR/AGENTS.md" 0644
@@ -219,11 +243,37 @@ if [ ! -f "$(prefix_path "/etc/$PROJECT/enabled")" ]; then
   chmod 0644 "$(prefix_path "/etc/$PROJECT/enabled")"
 fi
 
+if [ "$APPLIANCE_MODE" = "1" ] && [ ! -f "$(prefix_path "/etc/$PROJECT/setup.env")" ]; then
+  suffix=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-' | tail -c 6)
+  if [ -z "$suffix" ]; then
+    suffix="setup"
+  fi
+  {
+    printf 'PORCHLIGHT_APPLIANCE_MODE=1\n'
+    printf 'PORCHLIGHT_MDNS_NAME=porchlight-%s.local\n' "$suffix"
+    printf 'PORCHLIGHT_SETUP_SSID=Porchlight-%s\n' "$suffix"
+    printf 'PORCHLIGHT_SETUP_PASSWORD=porchlight20\n'
+    printf 'PORCHLIGHT_SETUP_WIFI_IFACE=wlan0\n'
+  } > "$(prefix_path "/etc/$PROJECT/setup.env")"
+  chmod 0600 "$(prefix_path "/etc/$PROJECT/setup.env")"
+fi
+
 if [ -z "$ROOT" ]; then
   cp "$SRC_ROOT"/systemd/*.service "$SYSTEMD_DIR/"
   cp "$SRC_ROOT"/systemd/*.timer "$SYSTEMD_DIR/"
+  cp "$SRC_ROOT"/systemd/*.path "$SYSTEMD_DIR/"
+  if [ "$APPLIANCE_MODE" = "1" ]; then
+    if command -v hostnamectl >/dev/null 2>&1 && [ -f "/etc/$PROJECT/setup.env" ]; then
+      # shellcheck disable=SC1091
+      . "/etc/$PROJECT/setup.env"
+      hostnamectl set-hostname "${PORCHLIGHT_MDNS_NAME%.local}" || true
+    fi
+  fi
   systemctl daemon-reload
   systemctl enable --now porchlight-web.service porchlight-discover.timer porchlight-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer
+  if [ "$APPLIANCE_MODE" = "1" ]; then
+    systemctl enable --now porchlight-setup-apply.path porchlight-setup-ap.service
+  fi
 fi
 
 log "$PROJECT $VERSION installed"

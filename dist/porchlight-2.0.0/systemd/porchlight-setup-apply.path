@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch Porchlight setup apply requests
+Documentation=file:/opt/porchlight/current/README.md
+
+[Path]
+PathExists=/run/porchlight/setup-action
+Unit=porchlight-setup-apply.service
+
+[Install]
+WantedBy=multi-user.target
