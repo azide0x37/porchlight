@@ -1,5 +1,13 @@
 # Release
 
+## 1.1.2
+
+- Fixed protocol analysis pluralization for one-host and one-service protocol
+  detail pages.
+- Stabilized featured-host card layout at medium viewport widths so long
+  service-chip lists wrap below host identity instead of compressing hostname
+  and address text.
+
 ## 1.1.1
 
 - Made overview service cards and the environment analysis derive service

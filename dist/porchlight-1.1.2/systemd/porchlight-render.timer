@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Porchlight rendered dashboard snapshots
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=5min
+Unit=porchlight-render.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

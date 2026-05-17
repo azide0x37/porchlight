@@ -365,12 +365,14 @@ function analysisForEnvironment() {
 function analysisForProtocol(name) {
   const matching = state.services.filter((service) => serviceName(service) === name);
   const hostCount = new Set(matching.map((service) => service.ip)).size;
+  const hostVerb = hostCount === 1 ? "speaks" : "speak";
+  const serviceVerb = matching.length === 1 ? "is" : "are";
   const grade = ["ms-wbt-server", "rtsp", "netbios-ssn"].includes(name) ? "C" : name === "mqtt" ? "A" : "B";
   return {
     grade,
     scope: `protocol - ${name}`,
-    headline: `${hostCount} host${hostCount === 1 ? "" : "s"} speak ${name}.`,
-    summary: `${matching.length} ${name} service${matching.length === 1 ? "" : "s"} are reachable from the scanner.`,
+    headline: `${hostCount} host${hostCount === 1 ? "" : "s"} ${hostVerb} ${name}.`,
+    summary: `${matching.length} ${name} service${matching.length === 1 ? "" : "s"} ${serviceVerb} reachable from the scanner.`,
     highlights: matching.slice(0, 3).map((service) => `${service.ip} answers on ${service.proto}/${service.port}.`),
     concerns: ["rtsp", "ms-wbt-server", "netbios-ssn", "vnc"].includes(name)
       ? ["Confirm this surface is expected on every listed host."]

@@ -1,0 +1,18 @@
+[Unit]
+Description=Render Porchlight dashboard snapshots
+Documentation=file:/opt/porchlight/current/README.md
+After=local-fs.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/porchlight/porchlight.env
+ExecStart=/opt/porchlight/current/bin/porchlight-render --apply
+TimeoutStartSec=30s
+RuntimeDirectory=porchlight muster
+RuntimeDirectoryPreserve=yes
+StateDirectory=porchlight
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/porchlight /run/muster /var/lib/porchlight
