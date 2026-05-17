@@ -249,7 +249,8 @@ a {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -774,9 +775,17 @@ h3 {
 .stat-value {
   position: relative;
   z-index: 1;
+  max-width: 100%;
   margin-top: 0.72rem;
   font-size: clamp(2.15rem, 5vw, 3rem);
   line-height: 1;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.settings-hero .stat-value {
+  font-size: clamp(1.35rem, 2.5vw, 2rem);
+  line-height: 1.1;
 }
 
 .stat-hint,
@@ -790,6 +799,7 @@ h3 {
   z-index: 1;
   margin-top: 0.35rem;
   font-size: 0.82rem;
+  overflow-wrap: anywhere;
 }
 
 .scan-pill,
@@ -1011,6 +1021,96 @@ h3 {
   overflow: auto;
 }
 
+.settings-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in oklch, var(--card) 96%, transparent);
+}
+
+.settings-form label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-form input,
+.settings-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.62rem 0.72rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 0.95rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.setup-wizard {
+  gap: 1.35rem;
+}
+
+.setup-wizard h1 {
+  max-width: 42rem;
+}
+
+.wifi-first {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-form input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 0.6rem;
+}
+
+.form-actions button {
+  min-height: 2.35rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--foreground);
+  color: var(--background);
+  cursor: pointer;
+}
+
+.form-actions button[type="button"] {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.form-result {
+  grid-column: 1 / -1;
+  min-height: 1.4rem;
+  margin: 0;
+  color: var(--muted-foreground);
+}
+
+.form-result[data-status="ok"] {
+  color: var(--porch-moss);
+}
+
+.form-result[data-status="error"] {
+  color: var(--porch-clay);
+}
+
 table {
   width: 100%;
   min-width: 42rem;
@@ -1105,6 +1205,10 @@ tr:last-child td {
 
   .toolbar {
     top: 4.8rem;
+  }
+
+  .settings-form {
+    grid-template-columns: 1fr;
   }
 }
 

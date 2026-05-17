@@ -5,8 +5,9 @@ directory scanner. It treats Home Assistant as a first-class presentation and
 control surface without making Home Assistant the LAN database.
 
 The current implementation includes the scanner, SQLite state ledger, static
-dashboard renderer, local web service, health writer, and Home Assistant MQTT
-bridge. Discovery is useful with only passive evidence, and active probing is
+dashboard renderer, local web service with constrained setup APIs, health
+writer, first-boot appliance onboarding, and Home Assistant MQTT bridge.
+Discovery is useful with only passive evidence, and active probing is
 safety-gated by interface, private-CIDR, and maximum-prefix policy.
 
 ```text
@@ -22,7 +23,7 @@ state + interpretation
   /run/muster/status.json
   /var/lib/porchlight/www/*.json
         |
-        +--> local web dashboard
+        +--> local web dashboard + setup API
         |
         +--> T2R6 Home Assistant MQTT Bridge
               publishes HA discovery
@@ -97,11 +98,14 @@ Tailscale evidence.
 
 ## Dashboard
 
-`porchlight-web.service` serves the static dashboard from
+`porchlight-web.service` serves the dashboard from
 `/var/lib/porchlight/www` on port `8765`. The renderer writes plain JSON and
 the hosted HTML/CSS/JS assets adapted from `azide0x37/porchlight-dashboard`, so
-the web service does not need scanner privileges or a Node runtime. The
-dashboard reads `/status.json`, `/hosts.json`, `/services.json`,
+the web service does not need scanner privileges or a Node runtime. The web
+service also exposes constrained `/api/setup/*` JSON endpoints for MQTT and
+appliance setup writes under `/etc/porchlight`; it does not accept arbitrary
+commands or service names from the browser. The dashboard reads `/status.json`,
+`/hosts.json`, `/services.json`,
 `/changes.json`, and `/snapshot.json` at runtime, which keeps the appliance UI
 in sync with the latest scanner render.
 
@@ -174,9 +178,30 @@ It always writes mockable MQTT artifacts under:
 - `/run/muster/home-assistant-mqtt-bridge/mqtt-outbox`
 - `/run/muster/home-assistant-mqtt-bridge/mqtt-control`
 
-Real broker publishing is disabled by default. Enable it in
-`/etc/porchlight/porchlight.mqtt.env` with `HA_MQTT_ENABLE=1` after reviewing
-the outbox payloads. The adapter is `mosquitto_pub`.
+Home Assistant MQTT discovery is enabled by default for appliance setup. Use
+`/etc/porchlight/porchlight.mqtt.env` or the dashboard Settings view to write
+the broker host, port, credentials, discovery prefix, node ID, and base topic.
+The adapter is `mosquitto_pub`, and the dashboard never returns the stored MQTT
+password after saving it.
+
+## Appliance Setup
+
+For preinstalled Raspberry Pi Zero 2 W images, install Porchlight in appliance
+mode:
+
+```sh
+sudo ./bin/install.sh --appliance
+```
+
+Appliance mode adds NetworkManager and Avahi dependencies on apt-based hosts,
+generates `/etc/porchlight/setup.env`, enables `porchlight-setup-ap.service`,
+and starts a temporary Wi-Fi setup access point when no Wi-Fi connection is
+active and `/etc/porchlight/setup-complete` is absent. The setup UI is available
+from the Porchlight dashboard and writes Wi-Fi plus Home Assistant MQTT settings
+without requiring SSH. Finishing setup writes `/etc/porchlight/setup-complete`
+and requests the allowlisted setup helper to shut down the temporary AP.
+
+Normal installs do not enable the setup AP or change host networking.
 
 ## Controls
 
@@ -204,6 +229,12 @@ From a checkout:
 
 ```sh
 sudo ./bin/install.sh
+```
+
+For a preinstalled no-SSH appliance image:
+
+```sh
+sudo ./bin/install.sh --appliance
 ```
 
 From a published release:
@@ -282,9 +313,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-1.1.5/`
-- `dist/porchlight-1.1.5.tar.gz`
-- `dist/porchlight-1.1.5.tar.gz.sha256`
+- `dist/porchlight-2.0.0/`
+- `dist/porchlight-2.0.0.tar.gz`
+- `dist/porchlight-2.0.0.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
@@ -300,7 +331,8 @@ This writes:
 | units call `/opt/porchlight/current/bin/...` | PASS | `systemd/porchlight-ha-mqtt-bridge.service` `ExecStart` |
 | scanner writes state ledger | PASS | `src/porchlight-scan`, `src/porchlight/store.py`, `tests/test_scan.py` |
 | static dashboard is rendered | PASS | `src/porchlight-render`, `src/porchlight/render.py`, `src/porchlight/webroot`, vendored fonts/icons, `systemd/porchlight-render.timer` |
-| local web dashboard is systemd-owned | PASS | `src/porchlight-web`, `src/porchlight/web.py` no-store headers for mutable assets, `systemd/porchlight-web.service` |
+| local web dashboard and setup API are systemd-owned | PASS | `src/porchlight-web`, `src/porchlight/web.py` no-store headers and `/api/setup/*`, `systemd/porchlight-web.service` |
+| no-SSH appliance setup is optional | PASS | `bin/install.sh --appliance`, `bin/setup-ap.sh`, `bin/setup-apply.sh`, `systemd/porchlight-setup-ap.service`, `systemd/porchlight-setup-apply.path` |
 | appliance health is written | PASS | `src/porchlight-health`, `systemd/porchlight-health.timer` |
 | installer idempotent | PASS | `make test` runs staged install; installer only creates default config when missing |
 | broker and scanner dependencies handled | PASS | `bin/install.sh` installs `mosquitto-clients`, `nmap`, and `arp-scan` on apt hosts; `bin/doctor.sh` checks `MOSQUITTO_PUB` when `HA_MQTT_ENABLE=1` |

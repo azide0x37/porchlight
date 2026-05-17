@@ -1,0 +1,20 @@
+[Unit]
+Description=Porchlight Home Assistant MQTT bridge
+Documentation=file:/opt/porchlight/current/README.md
+After=network-online.target local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/porchlight/porchlight.env
+EnvironmentFile=-/etc/porchlight/porchlight.mqtt.env
+ExecStart=/opt/porchlight/current/bin/porchlight-ha-mqtt-bridge --apply --once
+TimeoutStartSec=30s
+RuntimeDirectory=porchlight muster
+RuntimeDirectoryPreserve=yes
+StateDirectory=porchlight muster/home-assistant-mqtt-bridge
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/porchlight /run/muster /var/lib/porchlight /var/lib/muster/home-assistant-mqtt-bridge /etc/porchlight

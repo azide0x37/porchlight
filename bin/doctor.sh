@@ -40,6 +40,9 @@ check "render timer unit exists" test -f "$CURRENT/systemd/porchlight-render.tim
 check "health service unit exists" test -f "$CURRENT/systemd/porchlight-health.service"
 check "health timer unit exists" test -f "$CURRENT/systemd/porchlight-health.timer"
 check "web service unit exists" test -f "$CURRENT/systemd/porchlight-web.service"
+check "setup ap service unit exists" test -f "$CURRENT/systemd/porchlight-setup-ap.service"
+check "setup apply service unit exists" test -f "$CURRENT/systemd/porchlight-setup-apply.service"
+check "setup apply path unit exists" test -f "$CURRENT/systemd/porchlight-setup-apply.path"
 
 if [ -f "$CONFIG_DIR/porchlight.mqtt.env" ]; then
   HA_MQTT_ENABLE=$(sed -n 's/^HA_MQTT_ENABLE=//p' "$CONFIG_DIR/porchlight.mqtt.env" | head -n 1)

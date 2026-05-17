@@ -9,11 +9,12 @@ project:
   release_dir: /opt/porchlight/releases
   current_link: /opt/porchlight/current
 architecture:
-  summary: LAN directory appliance with local dashboard and Home Assistant summary surface.
+  summary: LAN directory appliance with local dashboard, no-SSH setup, and Home Assistant summary surface.
   network_leg: LAN scan and observe
   local_plumbing_leg: SQLite state ledger, sidecar JSON, and static dashboard JSON
   lifecycle_owner: systemd
   homeassistant_bridge: MQTT discovery, appliance telemetry, and narrow controls
+  setup_leg: first-boot Wi-Fi access point and web setup API for appliance images
 patterns:
   top:
     - T3C1.edge-appliance-bundle
@@ -50,6 +51,17 @@ patterns:
         - systemd/porchlight-ha-mqtt-bridge.service
         - systemd/porchlight-ha-mqtt-bridge.timer
         - etc/porchlight.mqtt.env.example
+    appliance_onboarding:
+      atom: T3C1.edge-appliance-bundle
+      evidence:
+        - src/porchlight/web.py
+        - src/porchlight/settings.py
+        - bin/setup-ap.sh
+        - bin/setup-apply.sh
+        - systemd/porchlight-setup-ap.service
+        - systemd/porchlight-setup-apply.service
+        - systemd/porchlight-setup-apply.path
+        - etc/porchlight.setup.env.example
 home_assistant:
   enabled: true
   discovery_prefix: homeassistant
@@ -108,6 +120,8 @@ services:
   - porchlight-render.service
   - porchlight-health.service
   - porchlight-ha-mqtt-bridge.service
+  - porchlight-setup-ap.service
+  - porchlight-setup-apply.service
 timers:
   - porchlight-discover.timer
   - porchlight-scan.timer
@@ -115,6 +129,8 @@ timers:
   - porchlight-render.timer
   - porchlight-health.timer
   - porchlight-ha-mqtt-bridge.timer
+path_units:
+  - porchlight-setup-apply.path
 paths:
   config: /etc/porchlight
   state: /var/lib/porchlight
@@ -145,7 +161,7 @@ compliance:
     doctor: bin/doctor.sh
     render_units: bin/render-units.sh
   generated_artifacts:
-    - dist/porchlight-1.1.5
-    - dist/porchlight-1.1.5.tar.gz
-    - dist/porchlight-1.1.5.tar.gz.sha256
+    - dist/porchlight-2.0.0
+    - dist/porchlight-2.0.0.tar.gz
+    - dist/porchlight-2.0.0.tar.gz.sha256
     - dist/manifest.json

@@ -19,7 +19,22 @@ shell commands.
 ## Broker Credentials
 
 MQTT settings live in `/etc/porchlight/porchlight.mqtt.env`, installed with mode
-`0600`. Real broker publishing is disabled until `HA_MQTT_ENABLE=1`.
+`0600`. Discovery publishing is enabled by default for appliance setup. The web
+setup API can update broker settings, but responses only report whether a
+password is set; they never return `MQTT_PASSWORD`.
+
+## Setup API
+
+`porchlight-web.service` exposes `/api/setup/*` for local appliance setup. The
+API validates MQTT host, port, topic, and node fields before writing env files.
+Wi-Fi writes are accepted only when appliance mode is enabled in
+`/etc/porchlight/setup.env`. Setup side effects beyond file writes go through
+`/run/porchlight/setup-action`, which is consumed by an allowlisted systemd
+helper.
+
+Normal installs do not enable the temporary setup access point. Appliance mode
+uses NetworkManager to start a temporary setup AP only until
+`/etc/porchlight/setup-complete` exists.
 
 ## Scan Safety
 

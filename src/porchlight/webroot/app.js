@@ -9,6 +9,7 @@ const state = {
   groupBy: "subnet",
   currentRoute: null,
   suppressHashRender: false,
+  setupStatus: { setup: {}, mqtt: {}, wifi: {} },
 };
 
 const themeModes = ["light", "system", "dark"];
@@ -161,18 +162,32 @@ async function json(path, fallback) {
 }
 
 async function load() {
-  const [status, hosts, services, changes, snapshot] = await Promise.all([
+  const [status, hosts, services, changes, snapshot, setupStatus] = await Promise.all([
     json("/status.json", {}),
     json("/hosts.json", { hosts: [] }),
     json("/services.json", { services: [] }),
     json("/changes.json", { recent_runs: [] }),
     json("/snapshot.json", {}),
+    json("/api/setup/status", { setup: {}, mqtt: {}, wifi: {} }),
   ]);
   state.status = status || {};
   state.hosts = Array.isArray(hosts.hosts) ? hosts.hosts : [];
   state.services = Array.isArray(services.services) ? services.services : [];
   state.changes = changes || { recent_runs: [] };
   state.snapshot = snapshot || {};
+  state.setupStatus = setupStatus || { setup: {}, mqtt: {}, wifi: {} };
+}
+
+async function postJson(path, payload) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify(payload || {}),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) throw new Error(data.error || `Request failed with ${response.status}`);
+  return data;
 }
 
 function number(value) {
@@ -728,6 +743,66 @@ function renderAnalysis() {
   </div>`;
 }
 
+function renderSettings() {
+  const setup = state.setupStatus.setup || {};
+  const mqtt = state.setupStatus.mqtt || {};
+  const wifi = state.setupStatus.wifi || {};
+  const setupMode = setup.appliance_mode && !setup.setup_complete;
+  const networks = Array.isArray(wifi.networks) ? wifi.networks : [];
+  const wifiNetworkOptions = networks
+    .map((network) => `<option value="${escapeHtml(network.ssid)}">${escapeHtml(network.ssid)}${network.signal == null ? "" : ` - ${escapeHtml(network.signal)}%`}${network.security ? ` - ${escapeHtml(network.security)}` : ""}</option>`)
+    .join("");
+  const wifiWizard = setupMode ? `<section class="hero setup-wizard">
+      <p class="eyebrow">First-boot setup</p>
+      <h1>Connect Porchlight to Wi-Fi.</h1>
+      <p>Join your home network first. Home Assistant MQTT settings are below when you are ready.</p>
+      <form class="settings-form wifi-first" id="wifi-settings">
+        <label><span>Found networks</span><select name="ssid_choice"><option value="">Other or hidden SSID</option>${wifiNetworkOptions}</select></label>
+        <label><span>Other or hidden SSID</span><input name="ssid" autocomplete="off"></label>
+        <label><span>Password</span><input name="password" type="password" autocomplete="current-password"></label>
+        <div class="form-actions">
+          <button type="submit">Connect Wi-Fi</button>
+          <button type="button" data-action="finish-setup">Finish setup</button>
+        </div>
+        <p class="form-result" id="wifi-result" role="status">${escapeHtml(wifi.message || "")}</p>
+      </form>
+    </section>` : "";
+  const settingsHero = setupMode ? "" : `<section class="hero settings-hero">
+      <p class="eyebrow">Settings</p>
+      <h1>Connect Porchlight to Home Assistant.</h1>
+      <p>${mqtt.enabled ? "Home Assistant MQTT discovery is enabled." : "Home Assistant MQTT discovery is disabled until broker settings are saved."}</p>
+      <div class="stats">
+        ${stat("MQTT", mqtt.enabled ? "Enabled" : "Disabled", mqtt.host ? `${mqtt.host}:${mqtt.port || 1883}` : "no broker", "var(--porch-sky)")}
+        ${stat("Password", mqtt.password_set ? "Stored" : "Empty", "never shown after saving", "var(--porch-amber)")}
+        ${stat("Wi-Fi", wifi.connected ? "Connected" : "Not connected", wifi.ssid || wifi.message || "setup AP available", "var(--porch-leaf)")}
+        ${stat("Address", setup.mdns_name || "porchlight.local", setup.setup_ssid || "local dashboard", "var(--porch-clay)")}
+      </div>
+    </section>`;
+  return `<div class="stack">
+    ${wifiWizard}
+    ${settingsHero}
+    <section class="section">
+      ${sectionHead("Home Assistant", "MQTT broker")}
+      <form class="settings-form" id="mqtt-settings">
+        <label><span>Enable discovery</span><input type="checkbox" name="enabled" ${mqtt.enabled ? "checked" : ""}></label>
+        <label><span>Broker host</span><input name="host" value="${escapeHtml(mqtt.host || "")}" placeholder="homeassistant.local" autocomplete="off"></label>
+        <label><span>Broker port</span><input name="port" type="number" min="1" max="65535" value="${escapeHtml(mqtt.port || 1883)}"></label>
+        <label><span>Username</span><input name="username" value="${escapeHtml(mqtt.username || "")}" autocomplete="username"></label>
+        <label><span>Password</span><input name="password" type="password" placeholder="${mqtt.password_set ? "Stored - leave blank to keep" : ""}" autocomplete="current-password"></label>
+        <label><span>Discovery prefix</span><input name="discovery_prefix" value="${escapeHtml(mqtt.discovery_prefix || "homeassistant")}"></label>
+        <label><span>Base topic</span><input name="base_topic" value="${escapeHtml(mqtt.base_topic || "porchlight")}"></label>
+        <label><span>Node ID</span><input name="node_id" value="${escapeHtml(mqtt.node_id || "porchlight")}"></label>
+        <label><span>Device name</span><input name="device_name" value="${escapeHtml(mqtt.device_name || "Porchlight LAN Directory")}"></label>
+        <div class="form-actions">
+          <button type="submit">Save MQTT</button>
+          <button type="button" data-action="test-mqtt">Test publish</button>
+        </div>
+        <p class="form-result" id="mqtt-result" role="status"></p>
+      </form>
+    </section>
+  </div>`;
+}
+
 function empty(message) {
   return `<div class="route-empty"><p class="muted">${escapeHtml(message)}</p></div>`;
 }
@@ -748,6 +823,7 @@ function render() {
   else if (path.startsWith("/protocols/")) app.innerHTML = renderProtocolDetail(decodeURIComponent(path.slice("/protocols/".length)));
   else if (path === "/exposures") app.innerHTML = renderExposures();
   else if (path === "/analysis") app.innerHTML = renderAnalysis();
+  else if (path === "/settings") app.innerHTML = renderSettings();
   else app.innerHTML = notFound("Page not found.");
   bindControls();
   app.focus({ preventScroll: true });
@@ -797,6 +873,76 @@ function bindControls() {
       state.groupBy = button.dataset.value;
       render();
     });
+  });
+  bindSettings();
+}
+
+function formPayload(form) {
+  const data = new FormData(form);
+  const payload = {};
+  for (const [key, value] of data.entries()) payload[key] = value;
+  if (form.id === "mqtt-settings") {
+    payload.enabled = form.elements.enabled.checked;
+    payload.port = Number(payload.port || 1883);
+    if (!payload.password) delete payload.password;
+  } else if (form.id === "wifi-settings") {
+    payload.ssid = String(payload.ssid_choice || payload.ssid || "").trim();
+    delete payload.ssid_choice;
+  }
+  return payload;
+}
+
+function setResult(id, message, ok = true) {
+  const node = document.querySelector(id);
+  if (!node) return;
+  node.textContent = message;
+  node.dataset.status = ok ? "ok" : "error";
+}
+
+function bindSettings() {
+  const mqtt = document.querySelector("#mqtt-settings");
+  if (mqtt) {
+    mqtt.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const data = await postJson("/api/setup/mqtt", formPayload(mqtt));
+        state.setupStatus.mqtt = data.mqtt || state.setupStatus.mqtt;
+        setResult("#mqtt-result", "MQTT settings saved.");
+      } catch (error) {
+        setResult("#mqtt-result", error.message, false);
+      }
+    });
+  }
+  document.querySelector("[data-action='test-mqtt']")?.addEventListener("click", async () => {
+    try {
+      const data = await postJson("/api/setup/mqtt/test", mqtt ? formPayload(mqtt) : {});
+      setResult("#mqtt-result", data.message || "Test publish sent.");
+    } catch (error) {
+      setResult("#mqtt-result", error.message, false);
+    }
+  });
+  const wifi = document.querySelector("#wifi-settings");
+  if (wifi) {
+    wifi.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const data = await postJson("/api/setup/wifi", formPayload(wifi));
+        state.setupStatus.wifi = data.wifi || state.setupStatus.wifi;
+        setResult("#wifi-result", "Wi-Fi settings submitted.");
+      } catch (error) {
+        setResult("#wifi-result", error.message, false);
+      }
+    });
+  }
+  document.querySelector("[data-action='finish-setup']")?.addEventListener("click", async () => {
+    try {
+      const data = await postJson("/api/setup/finish", {});
+      state.setupStatus.setup = data.setup || state.setupStatus.setup;
+      setResult("#wifi-result", "Setup complete.");
+      render();
+    } catch (error) {
+      setResult("#wifi-result", error.message, false);
+    }
   });
 }
 
