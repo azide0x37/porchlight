@@ -35,12 +35,14 @@ patterns:
         - src/porchlight-scan
         - src/porchlight/store.py
         - src/porchlight/render.py
+        - src/porchlight/webroot
         - systemd/porchlight-scan.service
         - systemd/porchlight-scan.timer
         - SQLite
         - /run/porchlight/status.json
         - /run/muster/status.json
         - /var/lib/porchlight/www/*.json
+        - /var/lib/porchlight/www/index.html
     homeassistant_mqtt_bridge:
       atom: T2R6.home-assistant-mqtt-bridge
       evidence:
@@ -143,7 +145,7 @@ compliance:
     doctor: bin/doctor.sh
     render_units: bin/render-units.sh
   generated_artifacts:
-    - dist/porchlight-0.4.0
-    - dist/porchlight-0.4.0.tar.gz
-    - dist/porchlight-0.4.0.tar.gz.sha256
+    - dist/porchlight-1.1.0
+    - dist/porchlight-1.1.0.tar.gz
+    - dist/porchlight-1.1.0.tar.gz.sha256
     - dist/manifest.json

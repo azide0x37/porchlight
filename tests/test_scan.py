@@ -125,6 +125,7 @@ class ScanTest(unittest.TestCase):
 
             status = json.loads((root / "run/porchlight/status.json").read_text())
             inventory = json.loads((root / "var/lib/porchlight/www/hosts.json").read_text())
+            www = root / "var/lib/porchlight/www"
 
             self.assertEqual(status["network_cidr"], "192.168.16.0/22")
             self.assertEqual(status["gateway"], "192.168.16.1")
@@ -140,6 +141,9 @@ class ScanTest(unittest.TestCase):
             self.assertIn("100.98.113.100", {host["ip"] for host in inventory["hosts"]})
             self.assertIn("192.168.17.100", {host["ip"] for host in inventory["hosts"]})
             self.assertIn("KP303", {host["display_name"] for host in inventory["hosts"]})
+            self.assertIn("Porchlight - LAN directory", (www / "index.html").read_text(encoding="utf-8"))
+            self.assertIn("/snapshot.json", (www / "app.js").read_text(encoding="utf-8"))
+            self.assertTrue((www / "icon-round.png").is_file())
 
     def write_command(self, path, body):
         path.write_text("#!/usr/bin/env python3\n" + textwrap.dedent(body).strip() + "\n")

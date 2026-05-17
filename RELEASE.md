@@ -1,5 +1,31 @@
 # Release
 
+## 1.1.0
+
+- Corrected dashboard display typography to use the reference font weights for
+  serif headings, stat values, and the brand mark.
+- Made the page body a full-height flex column so sparse routes grow the main
+  content area and keep the footer at the bottom of the viewport.
+
+## 1.0.0
+
+- Replaced the minimal generated table dashboard with hosted static assets
+  adapted from `azide0x37/porchlight-dashboard`.
+- The dashboard now reads the rendered Porchlight JSON sidecars at runtime, so
+  the appliance UI updates with each scanner render without needing Node.
+- Added dashboard dark mode with system-preference detection, a persistent
+  header toggle, and dark-theme CSS tokens.
+- Ported the reference dashboard header treatment more faithfully: compact
+  icon-only theme controls, header halo/fireflies, hash-route view transitions,
+  and a mobile hamburger drawer.
+- Vendored the exact deployed Inter, Fraunces, and JetBrains Mono WOFF2 assets
+  plus the reference PWA icon set for offline appliance/PWA use.
+- Added iOS safe-area metadata, Apple web app metadata, versioned CSS/JS URLs,
+  no-store headers for mutable dashboard assets, and mobile 2-column stat tiles.
+- Added Muster contract tests that prove the dashboard webroot is packaged and
+  backed by `/status.json`, `/hosts.json`, `/services.json`, and
+  `/snapshot.json`.
+
 ## 0.4.0
 
 - Active scans now run against discovered private hosts instead of blocking on

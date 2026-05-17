@@ -99,7 +99,16 @@ Tailscale evidence.
 
 `porchlight-web.service` serves the static dashboard from
 `/var/lib/porchlight/www` on port `8765`. The renderer writes plain JSON and
-HTML/CSS/JS assets, so the web service does not need scanner privileges.
+the hosted HTML/CSS/JS assets adapted from `azide0x37/porchlight-dashboard`, so
+the web service does not need scanner privileges or a Node runtime. The
+dashboard reads `/status.json`, `/hosts.json`, `/services.json`,
+`/changes.json`, and `/snapshot.json` at runtime, which keeps the appliance UI
+in sync with the latest scanner render.
+
+The packaged webroot vendors the dashboard fonts and PWA icon set locally,
+uses iOS safe-area metadata, and serves HTML/CSS/JS/JSON with no-store cache
+headers so mobile and installed-PWA clients do not mix markup from one release
+with styles from another.
 
 Service rows include categorized HTTP, RTSP, MQTT, and common internal network
 ports. HTTP/HTTPS services are linked directly from the dashboard, and
@@ -273,9 +282,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-0.4.0/`
-- `dist/porchlight-0.4.0.tar.gz`
-- `dist/porchlight-0.4.0.tar.gz.sha256`
+- `dist/porchlight-1.1.0/`
+- `dist/porchlight-1.1.0.tar.gz`
+- `dist/porchlight-1.1.0.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
@@ -290,8 +299,8 @@ This writes:
 | `/opt/porchlight/current` active link | PASS | `bin/install.sh` updates the symlink after staging release files |
 | units call `/opt/porchlight/current/bin/...` | PASS | `systemd/porchlight-ha-mqtt-bridge.service` `ExecStart` |
 | scanner writes state ledger | PASS | `src/porchlight-scan`, `src/porchlight/store.py`, `tests/test_scan.py` |
-| static dashboard is rendered | PASS | `src/porchlight-render`, `src/porchlight/render.py`, `systemd/porchlight-render.timer` |
-| local web dashboard is systemd-owned | PASS | `src/porchlight-web`, `systemd/porchlight-web.service` |
+| static dashboard is rendered | PASS | `src/porchlight-render`, `src/porchlight/render.py`, `src/porchlight/webroot`, vendored fonts/icons, `systemd/porchlight-render.timer` |
+| local web dashboard is systemd-owned | PASS | `src/porchlight-web`, `src/porchlight/web.py` no-store headers for mutable assets, `systemd/porchlight-web.service` |
 | appliance health is written | PASS | `src/porchlight-health`, `systemd/porchlight-health.timer` |
 | installer idempotent | PASS | `make test` runs staged install; installer only creates default config when missing |
 | broker and scanner dependencies handled | PASS | `bin/install.sh` installs `mosquitto-clients`, `nmap`, and `arp-scan` on apt hosts; `bin/doctor.sh` checks `MOSQUITTO_PUB` when `HA_MQTT_ENABLE=1` |

@@ -35,6 +35,7 @@ class MusterContractTest(unittest.TestCase):
         for text in [
             "## Self-Certification",
             "curl -fsSL https://github.com/azide0x37/porchlight/releases/latest/download/install.sh | sudo sh",
+            "azide0x37/porchlight-dashboard",
             "systemd owns lifecycle",
             "runtime under `/opt/porchlight/releases/<version>`",
             "updater verifies and rolls back",
@@ -54,6 +55,7 @@ class MusterContractTest(unittest.TestCase):
             "bin/uninstall.sh",
             "bin/doctor.sh",
             "make package",
+            "src/porchlight/webroot",
         ]:
             self.assertIn(text, muster)
 
@@ -82,3 +84,53 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("mqtt publish adapter available", doctor)
         self.assertIn("sqlite ledger created", doctor)
         self.assertIn("dashboard snapshot rendered", doctor)
+
+    def test_dashboard_assets_are_packaged_and_runtime_json_backed(self):
+        webroot = ROOT / "src/porchlight/webroot"
+        index = (webroot / "index.html").read_text(encoding="utf-8")
+        app = (webroot / "app.js").read_text(encoding="utf-8")
+        style = (webroot / "style.css").read_text(encoding="utf-8")
+        web = (ROOT / "src/porchlight/web.py").read_text(encoding="utf-8")
+
+        for path in [
+            webroot / "index.html",
+            webroot / "app.js",
+            webroot / "style.css",
+            webroot / "manifest.webmanifest",
+            webroot / "icon-round.png",
+            webroot / "icon-192.png",
+            webroot / "icon-512.png",
+            webroot / "apple-icon.png",
+            webroot / "icon.svg",
+            webroot / "fonts/inter-latin.woff2",
+            webroot / "fonts/fraunces-latin.woff2",
+            webroot / "fonts/jetbrains-latin.woff2",
+        ]:
+            self.assertTrue(path.is_file(), path)
+
+        self.assertIn("Porchlight - LAN directory", index)
+        self.assertIn("viewport-fit=cover", index)
+        self.assertIn("apple-touch-icon", index)
+        self.assertIn("/style.css?v=1.1.0", index)
+        self.assertIn("/app.js?v=1.1.0", index)
+        self.assertIn("/status.json", app)
+        self.assertIn("/hosts.json", app)
+        self.assertIn("/services.json", app)
+        self.assertIn("The porch is lit.", app)
+        self.assertIn("porchlight-theme", app)
+        self.assertIn("prefers-color-scheme: dark", app)
+        self.assertIn("nextThemeMode", app)
+        self.assertIn("startViewTransition", app)
+        self.assertIn("drawer-open", app)
+        self.assertIn("@font-face", style)
+        self.assertIn("/fonts/inter-latin.woff2", style)
+        self.assertIn("font-weight: 400;", style)
+        self.assertIn("flex: 1 0 auto;", style)
+        self.assertIn(".host-row", style)
+        self.assertIn(':root[data-theme="dark"]', style)
+        self.assertIn(".fireflies", style)
+        self.assertIn(".mobile-drawer", style)
+        self.assertIn("@view-transition", style)
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", style)
+        self.assertIn("Cache-Control", web)
+        self.assertIn("no-store", web)
