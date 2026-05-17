@@ -1,5 +1,10 @@
 # Release
 
+## 1.1.3
+
+- Tightened the animated brand `i` glyph height so the header wordmark does
+  not read as a duplicated character at desktop and medium viewport sizes.
+
 ## 1.1.2
 
 - Fixed protocol analysis pluralization for one-host and one-service protocol

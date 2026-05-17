@@ -282,9 +282,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-1.1.2/`
-- `dist/porchlight-1.1.2.tar.gz`
-- `dist/porchlight-1.1.2.tar.gz.sha256`
+- `dist/porchlight-1.1.3/`
+- `dist/porchlight-1.1.3.tar.gz`
+- `dist/porchlight-1.1.3.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
