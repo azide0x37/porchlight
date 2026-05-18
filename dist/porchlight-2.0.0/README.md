@@ -329,7 +329,7 @@ This writes:
 | runtime under `/opt/porchlight/releases/<version>` | PASS | `bin/install.sh` installs to `/opt/porchlight/releases/$(VERSION)` |
 | `/opt/porchlight/current` active link | PASS | `bin/install.sh` updates the symlink after staging release files |
 | units call `/opt/porchlight/current/bin/...` | PASS | `systemd/porchlight-ha-mqtt-bridge.service` `ExecStart` |
-| scanner writes state ledger | PASS | `src/porchlight-scan`, `src/porchlight/store.py`, `tests/test_scan.py` |
+| scanner writes state ledger | PASS | `src/porchlight-scan`, `src/porchlight/store.py`, `tests/test_scan.py` including discover-mode preservation of the last service scan counts |
 | static dashboard is rendered | PASS | `src/porchlight-render`, `src/porchlight/render.py`, `src/porchlight/webroot`, vendored fonts/icons, `systemd/porchlight-render.timer` |
 | local web dashboard and setup API are systemd-owned | PASS | `src/porchlight-web`, `src/porchlight/web.py` no-store headers and `/api/setup/*`, `systemd/porchlight-web.service` |
 | no-SSH appliance setup is optional | PASS | `bin/install.sh --appliance`, `bin/setup-ap.sh`, `bin/setup-apply.sh`, `systemd/porchlight-setup-ap.service`, `systemd/porchlight-setup-apply.path` |

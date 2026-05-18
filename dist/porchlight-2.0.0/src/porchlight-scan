@@ -15,7 +15,7 @@ from porchlight.render import render
 from porchlight.scan import collect_observations
 from porchlight.service_types import service_counts
 from porchlight.store import Store
-from porchlight.util import append_event, now_iso, write_json
+from porchlight.util import append_event, now_iso, read_json, write_json
 
 
 def parse_args():
@@ -42,7 +42,20 @@ def main() -> int:
         for service in services:
             store.upsert_service(service, started)
         active_hosts = [host for host in hosts if host.get("active")]
-        counts = service_counts(services)
+        status_services = services
+        counts = service_counts(status_services)
+        open_ports = len(status_services)
+        changes_detected = "ON" if status_services else "OFF"
+        if args.mode == "discover":
+            previous_status = read_json(config.state_dir / "status.json")
+            ledger_services = store.services()
+            ledger_counts = service_counts(ledger_services)
+            open_ports = int(previous_status.get("open_ports", len(ledger_services)) or 0)
+            counts = {
+                key: int(previous_status.get(key, ledger_counts[key]) or 0)
+                for key in ledger_counts
+            }
+            changes_detected = previous_status.get("changes_detected", "ON" if ledger_services else "OFF")
         status = {
             "health": "healthy" if not meta.get("scan_blocked") else "degraded",
             "scan_state": "idle",
@@ -51,11 +64,11 @@ def main() -> int:
             "gateway": context["gateway"],
             "hosts_seen": len(hosts),
             "active_hosts": len(active_hosts),
-            "open_ports": len(services),
+            "open_ports": open_ports,
             **counts,
             "new_hosts": 0,
             "changed_services": 0,
-            "changes_detected": "ON" if services else "OFF",
+            "changes_detected": changes_detected,
             "scanner_online": True,
             "degraded": bool(meta.get("scan_blocked")),
             "scan_blocked": meta.get("scan_blocked"),

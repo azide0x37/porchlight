@@ -10,6 +10,9 @@
   MQTT passwords and preserve unknown config keys.
 - Added appliance-mode installer support for NetworkManager, Avahi, setup
   systemd units, and setup completion.
+- Preserved the last full service inventory during lightweight discover runs
+  so dashboard and Home Assistant service counts do not drop to zero between
+  active scans.
 
 ## 1.1.5
 
