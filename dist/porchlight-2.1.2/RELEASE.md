@@ -1,5 +1,11 @@
 # Release
 
+## 2.1.2
+
+- Fixed overview and settings stat cards so the colored status tone is painted
+  as a rounded card background instead of a blurred layer that could square off
+  or visually escape at the card corners.
+
 ## 2.1.1
 
 - Pointed iOS and PWA install metadata at new, dedicated icon filenames so

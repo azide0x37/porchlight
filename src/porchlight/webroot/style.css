@@ -750,23 +750,16 @@ h3 {
 
 .stat {
   min-height: 7.6rem;
-  overflow: hidden;
+  overflow: clip;
   padding: 1.15rem;
-}
-
-.stat::after {
-  position: absolute;
-  top: -2.5rem;
-  right: -2.5rem;
-  width: 8rem;
-  height: 8rem;
-  border-radius: 50%;
-  background: color-mix(in oklch, var(--tone, var(--porch-amber)) 34%, transparent);
-  content: "";
-  filter: blur(24px);
+  background:
+    radial-gradient(8.5rem 7.5rem at calc(100% - 0.35rem) 0.35rem, color-mix(in oklch, var(--tone, var(--porch-amber)) 30%, transparent), transparent 72%),
+    color-mix(in oklch, var(--card) 96%, transparent);
 }
 
 .stat-label {
+  position: relative;
+  z-index: 1;
   color: var(--muted-foreground);
   font-size: 0.68rem;
   font-weight: 600;
