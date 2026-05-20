@@ -1,5 +1,0 @@
-Interface: wlan0, type: EN10MB, MAC: dc:a6:32:97:e9:26, IPv4: 192.168.17.211
-Starting arp-scan 1.10.0 with 1024 hosts
-192.168.17.100	ec:b5:fa:84:3b:e9	Raspberry Pi Trading Ltd
-192.168.18.5	dc:a6:32:e8:f6:0c	Raspberry Pi Trading Ltd
-Ending arp-scan 1.10.0: 1024 hosts scanned

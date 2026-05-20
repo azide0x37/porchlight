@@ -1,5 +1,15 @@
 # Release
 
+## 2.1.0
+
+- Fixed installable PWA icons so iOS and browser install surfaces use opaque,
+  correctly sized assets without the transparent border intended for the
+  dashboard header lamp.
+- Kept the header wordmark on one line at medium viewport widths and switched
+  to the compact navigation earlier to avoid cramped desktop wrapping.
+- Reworded the dashboard's porch-heavy callouts into more direct network and
+  LAN posture language.
+
 ## 2.0.0
 
 - Added no-SSH appliance onboarding for Raspberry Pi Zero 2 W images with an

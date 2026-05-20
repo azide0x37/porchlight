@@ -27,12 +27,6 @@
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "/icon-round.png",
-      "sizes": "1024x1024",
-      "type": "image/png",
-      "purpose": "any"
     }
   ]
 }

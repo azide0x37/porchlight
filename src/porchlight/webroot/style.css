@@ -368,6 +368,7 @@ select {
 .brand {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 0.75rem;
   min-width: 0;
 }
@@ -423,7 +424,8 @@ h3,
   padding: 0.35em 0.05em 0.15em;
   margin: -0.35em -0.05em -0.15em;
   font-size: 1.25rem;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
+  white-space: nowrap;
   transition: font-size 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
@@ -483,7 +485,7 @@ h3,
   backdrop-filter: blur(12px);
 }
 
-@media (min-width: 860px) {
+@media (min-width: 1080px) {
   .nav { display: flex; }
 }
 
@@ -547,7 +549,7 @@ h3,
   backdrop-filter: blur(12px);
 }
 
-@media (min-width: 860px) {
+@media (min-width: 1080px) {
   .menu-toggle { display: none; }
 }
 

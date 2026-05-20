@@ -363,7 +363,7 @@ function analysisForEnvironment() {
   return {
     grade,
     scope: "environment",
-    headline: health === "healthy" ? "The porch is lit." : "The porch is partially lit.",
+    headline: health === "healthy" ? "Network view is current." : "Network view needs attention.",
     summary: `${active} of ${hostCount} hosts answered the latest scan, with ${openPorts} open ports indexed. The scanner reports ${health}.`,
     highlights: [
       `${serviceCounts.http_services} HTTP, ${serviceCounts.rtsp_services} RTSP, and ${serviceCounts.mqtt_services} MQTT services are visible.`,
@@ -467,11 +467,11 @@ function renderOverview() {
       <div class="hero-row">
         <div>
           <p class="eyebrow">${escapeHtml(status.network_cidr || "network unknown")} - gateway ${escapeHtml(status.gateway || "unknown")}</p>
-          <h1>The porch is lit.</h1>
+          <h1>${escapeHtml(status.health === "healthy" ? "Network view is current." : "Network view needs attention.")}</h1>
         </div>
         <span class="scan-pill">${statusDot(status.scanner_online === false ? "inactive" : "active")} scan ${escapeHtml(status.scan_state || "unknown")}</span>
       </div>
-      <p>${number(status.active_hosts)} of ${number(status.hosts_seen)} hosts answered the call. Last sweep ${relativeTime(status.last_scan)}. Scanner health is ${escapeHtml(status.health || "unknown")}.</p>
+      <p>${number(status.active_hosts)} of ${number(status.hosts_seen)} hosts answered the latest scan. Last sweep ${relativeTime(status.last_scan)}. Scanner health is ${escapeHtml(status.health || "unknown")}.</p>
       <div class="stats">
         ${stat("Active hosts", number(status.active_hosts), `${Math.max(0, number(status.hosts_seen) - number(status.active_hosts))} dormant`, "var(--porch-leaf)")}
         ${stat("Open ports", serviceCounts.open_ports, `${number(status.changed_services)} changed`, "var(--porch-amber)")}
@@ -533,7 +533,7 @@ function renderHosts() {
     .sort((a, b) => ipNum(a.ip) - ipNum(b.ip));
   return `<div class="stack">
     <section class="section">
-      ${sectionHead("Directory", "Every host on the porch", `${filtered.length} of ${state.hosts.length} hosts - ${state.services.length} services indexed`)}
+      ${sectionHead("Directory", "Every known host", `${filtered.length} of ${state.hosts.length} hosts - ${state.services.length} services indexed`)}
       <div class="toolbar">
         <input class="search" id="host-search" value="${escapeHtml(state.query)}" placeholder="Search by name, IP, MAC">
         <span class="segmented" data-control="status">${button("all", "All", state.statusFilter)}${button("active", "Active", state.statusFilter)}${button("inactive", "Dormant", state.statusFilter)}</span>
@@ -618,7 +618,7 @@ function renderProtocols() {
   const categories = uniqueCategories();
   return `<div class="stack">
     <section class="section">
-      ${sectionHead("Group by", "Protocols on the porch", `${state.services.length} services across ${protocols.length} protocols`)}
+      ${sectionHead("Group by", "Protocols on the network", `${state.services.length} services across ${protocols.length} protocols`)}
       <div class="grid three">${protocols.map(protocolCard).join("") || empty("No services indexed yet.")}</div>
     </section>
     <section class="section">
@@ -683,8 +683,8 @@ function renderExposures() {
   return `<div class="stack">
     <section class="hero">
       <p class="eyebrow">Posture lens</p>
-      <h1>What the porch shows the street.</h1>
-      <p>Porchlight is conservative: it scans bounded hosts already seen through local evidence. These lenses show the surfaces to skim first.</p>
+      <h1>Surfaces visible from the LAN.</h1>
+      <p>Porchlight keeps scanning bounded to hosts already seen through local evidence. These lenses show the surfaces to check first.</p>
     </section>
     ${buckets.map((bucket) => {
       const matches = state.services.filter(bucket.match);

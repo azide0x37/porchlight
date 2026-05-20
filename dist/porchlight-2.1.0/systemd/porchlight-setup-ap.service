@@ -1,0 +1,15 @@
+[Unit]
+Description=Porchlight first-boot setup access point
+Documentation=file:/opt/porchlight/current/README.md
+After=NetworkManager.service network-pre.target
+Wants=NetworkManager.service
+ConditionPathExists=!/etc/porchlight/setup-complete
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/porchlight/setup.env
+ExecStart=/opt/porchlight/current/bin/setup-ap.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
