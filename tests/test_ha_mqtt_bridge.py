@@ -144,6 +144,16 @@ class MusterLifecycleTest(unittest.TestCase):
             self.assertTrue((stage / f"opt/porchlight/releases/{version}/bin/porchlight-scan").is_file())
             self.assertTrue((stage / f"opt/porchlight/releases/{version}/systemd/porchlight-scan.service").is_file())
             self.assertTrue((stage / f"opt/porchlight/releases/{version}/systemd/porchlight-scan.timer").is_file())
+            self.assertTrue((stage / "var/lib/porchlight/www/index.html").is_file())
+            self.assertTrue((stage / "var/lib/porchlight/www/style.css").is_file())
+            self.assertIn(
+                f"/style.css?v={version}",
+                (stage / "var/lib/porchlight/www/index.html").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "radial-gradient(8.5rem 7.5rem",
+                (stage / "var/lib/porchlight/www/style.css").read_text(encoding="utf-8"),
+            )
             self.assertTrue((stage / "etc/porchlight/porchlight.env").is_file())
             self.assertTrue((stage / "etc/porchlight/porchlight.mqtt.env").is_file())
             self.assertEqual((stage / "etc/porchlight/enabled").read_text().strip(), "true")

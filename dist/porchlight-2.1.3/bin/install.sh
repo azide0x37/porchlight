@@ -159,6 +159,29 @@ install_dir() {
   install -d -m "$2" "$(prefix_path "$1")"
 }
 
+install_static_webroot() {
+  static_src="$SRC_ROOT/src/porchlight/webroot"
+  static_dest=$(prefix_path "/var/lib/$PROJECT/www")
+
+  if [ ! -d "$static_src" ]; then
+    printf '%s\n' "Release is missing dashboard webroot: $static_src" >&2
+    exit 1
+  fi
+
+  install -d -m 0755 "$static_dest"
+  for source in "$static_src"/*; do
+    [ -e "$source" ] || continue
+    name=${source##*/}
+    destination="$static_dest/$name"
+    if [ -d "$source" ]; then
+      rm -rf "$destination"
+      cp -R "$source" "$destination"
+    else
+      install -m 0644 "$source" "$destination"
+    fi
+  done
+}
+
 need_root
 prepare_source
 install_packages
@@ -229,6 +252,7 @@ rm -f "$CURRENT_LINK.next"
 ln -s "releases/$VERSION" "$CURRENT_LINK.next"
 rm -f "$CURRENT_LINK"
 mv -f "$CURRENT_LINK.next" "$CURRENT_LINK"
+install_static_webroot
 
 if [ ! -f "$MQTT_CONFIG_FILE" ]; then
   install_file "$SRC_ROOT/etc/porchlight.mqtt.env.example" "/etc/$PROJECT/porchlight.mqtt.env" 0600

@@ -71,7 +71,13 @@ if [ ! -d "$release_root" ]; then
   exit 1
 fi
 
-MUSTER_ROOT="" "$release_root/bin/install.sh"
+if ! MUSTER_ROOT="" "$release_root/bin/install.sh"; then
+  if [ -n "$previous" ]; then
+    ln -sfn "$previous" "$CURRENT_LINK"
+  fi
+  printf '%s\n' "update failed during install; rolled back" >&2
+  exit 1
+fi
 
 if ! /opt/$PROJECT/current/bin/doctor.sh; then
   if [ -n "$previous" ]; then

@@ -1,5 +1,11 @@
 # Release
 
+## 2.1.3
+
+- Refresh packaged static dashboard assets into `/var/lib/porchlight/www`
+  during install and update, so appliance upgrades immediately serve the new
+  HTML/CSS/icon files instead of waiting for the next render timer.
+
 ## 2.1.2
 
 - Fixed overview and settings stat cards so the colored status tone is painted
