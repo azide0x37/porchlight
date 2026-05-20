@@ -1,5 +1,13 @@
 # Release
 
+## 2.1.1
+
+- Pointed iOS and PWA install metadata at new, dedicated icon filenames so
+  devices do not reuse the previously cached `apple-icon.png` or manifest icon
+  paths.
+- Added a conventional 180px `apple-touch-icon.png` alongside dedicated
+  192px/512px PWA icons, all generated as opaque PNGs without alpha.
+
 ## 2.1.0
 
 - Fixed installable PWA icons so iOS and browser install surfaces use opaque,

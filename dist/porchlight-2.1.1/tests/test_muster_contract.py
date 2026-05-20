@@ -108,9 +108,9 @@ class MusterContractTest(unittest.TestCase):
             webroot / "style.css",
             webroot / "manifest.webmanifest",
             webroot / "icon-round.png",
-            webroot / "icon-192.png",
-            webroot / "icon-512.png",
-            webroot / "apple-icon.png",
+            webroot / "pwa-icon-192.png",
+            webroot / "pwa-icon-512.png",
+            webroot / "apple-touch-icon.png",
             webroot / "icon.svg",
             webroot / "fonts/inter-latin.woff2",
             webroot / "fonts/fraunces-latin.woff2",
@@ -121,9 +121,11 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("Porchlight - LAN directory", index)
         self.assertIn("viewport-fit=cover", index)
         self.assertIn("apple-touch-icon", index)
-        self.assertIn("/style.css?v=2.1.0", index)
-        self.assertIn("/app.js?v=2.1.0", index)
-        self.assertIn("Porchlight v2.1.0", index)
+        self.assertIn("/style.css?v=2.1.1", index)
+        self.assertIn("/app.js?v=2.1.1", index)
+        self.assertIn("Porchlight v2.1.1", index)
+        self.assertIn("/apple-touch-icon.png", index)
+        self.assertIn("/pwa-icon-192.png", index)
         self.assertIn("https://github.com/azide0x37/muster", index)
         self.assertIn("https://github.com/azide0x37/porchlight", index)
         self.assertIn("/status.json", app)
