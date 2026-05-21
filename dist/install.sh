@@ -207,6 +207,8 @@ install_file "$SRC_ROOT/src/porchlight-health" "$RELEASE_DIR/bin/porchlight-heal
 install_file "$SRC_ROOT/src/porchlight-health" "$RELEASE_DIR/src/porchlight-health" 0755
 install_file "$SRC_ROOT/src/porchlight-web" "$RELEASE_DIR/bin/porchlight-web" 0755
 install_file "$SRC_ROOT/src/porchlight-web" "$RELEASE_DIR/src/porchlight-web" 0755
+install_file "$SRC_ROOT/src/porchlight-ai-analysis" "$RELEASE_DIR/bin/porchlight-ai-analysis" 0755
+install_file "$SRC_ROOT/src/porchlight-ai-analysis" "$RELEASE_DIR/src/porchlight-ai-analysis" 0755
 cp -R "$SRC_ROOT/src/porchlight" "$(prefix_path "$RELEASE_DIR/src/")"
 install_file "$SRC_ROOT/bin/doctor.sh" "$RELEASE_DIR/bin/doctor.sh" 0755
 install_file "$SRC_ROOT/bin/update.sh" "$RELEASE_DIR/bin/update.sh" 0755
@@ -229,6 +231,8 @@ install_file "$SRC_ROOT/systemd/porchlight-render.timer" "$RELEASE_DIR/systemd/p
 install_file "$SRC_ROOT/systemd/porchlight-health.service" "$RELEASE_DIR/systemd/porchlight-health.service" 0644
 install_file "$SRC_ROOT/systemd/porchlight-health.timer" "$RELEASE_DIR/systemd/porchlight-health.timer" 0644
 install_file "$SRC_ROOT/systemd/porchlight-web.service" "$RELEASE_DIR/systemd/porchlight-web.service" 0644
+install_file "$SRC_ROOT/systemd/porchlight-ai-analysis.service" "$RELEASE_DIR/systemd/porchlight-ai-analysis.service" 0644
+install_file "$SRC_ROOT/systemd/porchlight-ai-analysis.timer" "$RELEASE_DIR/systemd/porchlight-ai-analysis.timer" 0644
 install_file "$SRC_ROOT/systemd/porchlight-setup-ap.service" "$RELEASE_DIR/systemd/porchlight-setup-ap.service" 0644
 install_file "$SRC_ROOT/systemd/porchlight-setup-apply.service" "$RELEASE_DIR/systemd/porchlight-setup-apply.service" 0644
 install_file "$SRC_ROOT/systemd/porchlight-setup-apply.path" "$RELEASE_DIR/systemd/porchlight-setup-apply.path" 0644
@@ -300,7 +304,7 @@ if [ -z "$ROOT" ]; then
     fi
   fi
   systemctl daemon-reload
-  systemctl enable --now porchlight-web.service porchlight-discover.timer porchlight-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer
+  systemctl enable --now porchlight-web.service porchlight-discover.timer porchlight-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer porchlight-ai-analysis.timer
   if [ "$APPLIANCE_MODE" = "1" ]; then
     systemctl enable --now porchlight-setup-apply.path porchlight-setup-ap.service
   fi

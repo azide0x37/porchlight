@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh Porchlight AI analysis
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=15min
+Unit=porchlight-ai-analysis.service
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target
