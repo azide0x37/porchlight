@@ -23,14 +23,20 @@ MQTT settings live in `/etc/porchlight/porchlight.mqtt.env`, installed with mode
 setup API can update broker settings, but responses only report whether a
 password is set; they never return `MQTT_PASSWORD`.
 
+## OpenAI Credentials
+
+OpenAI settings live in `/etc/porchlight/porchlight.openai.env`, installed with
+mode `0600`. The web setup API can update `OPENAI_API_KEY`, but responses only
+report whether a key is set; they never return the key value.
+
 ## Setup API
 
 `porchlight-web.service` exposes `/api/setup/*` for local appliance setup. The
-API validates MQTT host, port, topic, and node fields before writing env files.
-Wi-Fi writes are accepted only when appliance mode is enabled in
-`/etc/porchlight/setup.env`. Setup side effects beyond file writes go through
-`/run/porchlight/setup-action`, which is consumed by an allowlisted systemd
-helper.
+API validates MQTT host, port, topic, node fields, and OpenAI key shape before
+writing env files. Wi-Fi writes are accepted only when appliance mode is enabled
+in `/etc/porchlight/setup.env`. Setup side effects beyond file writes go
+through `/run/porchlight/setup-action`, which is consumed by an allowlisted
+systemd helper.
 
 Normal installs do not enable the temporary setup access point. Appliance mode
 uses NetworkManager to start a temporary setup AP only until

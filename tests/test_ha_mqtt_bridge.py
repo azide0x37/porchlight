@@ -156,6 +156,7 @@ class MusterLifecycleTest(unittest.TestCase):
             )
             self.assertTrue((stage / "etc/porchlight/porchlight.env").is_file())
             self.assertTrue((stage / "etc/porchlight/porchlight.mqtt.env").is_file())
+            self.assertTrue((stage / "etc/porchlight/porchlight.openai.env").is_file())
             self.assertEqual((stage / "etc/porchlight/enabled").read_text().strip(), "true")
 
             doctor = subprocess.run(
@@ -179,6 +180,7 @@ class MusterLifecycleTest(unittest.TestCase):
             self.assertFalse(current.exists())
             self.assertTrue((stage / "etc/porchlight/porchlight.env").is_file())
             self.assertTrue((stage / "etc/porchlight/porchlight.mqtt.env").is_file())
+            self.assertTrue((stage / "etc/porchlight/porchlight.openai.env").is_file())
 
             install_again = subprocess.run(
                 [str(ROOT / "bin/install.sh")],

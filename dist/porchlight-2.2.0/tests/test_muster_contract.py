@@ -62,6 +62,7 @@ class MusterContractTest(unittest.TestCase):
             "make package",
             "src/porchlight/webroot",
             "src/porchlight/settings.py",
+            "etc/porchlight.openai.env.example",
             "porchlight-setup-apply.path",
         ]:
             self.assertIn(text, muster)
@@ -125,9 +126,9 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("Porchlight - LAN directory", index)
         self.assertIn("viewport-fit=cover", index)
         self.assertIn("apple-touch-icon", index)
-        self.assertIn("/style.css?v=2.1.3", index)
-        self.assertIn("/app.js?v=2.1.3", index)
-        self.assertIn("Porchlight v2.1.3", index)
+        self.assertIn("/style.css?v=2.2.0", index)
+        self.assertIn("/app.js?v=2.2.0", index)
+        self.assertIn("Porchlight v2.2.0", index)
         self.assertIn("radial-gradient(8.5rem 7.5rem", style)
         self.assertIn("/apple-touch-icon.png", index)
         self.assertIn("/pwa-icon-192.png", index)
@@ -139,6 +140,7 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("/api/setup/status", app)
         self.assertIn("renderSettings", app)
         self.assertIn("Save MQTT", app)
+        self.assertIn("Save OpenAI", app)
         self.assertIn("Network view is current.", app)
         self.assertIn("Every known host", app)
         self.assertIn("derivedServiceCounts", app)
@@ -170,3 +172,5 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("no-store", web)
         self.assertIn("/api/setup/mqtt", web)
         self.assertIn("update_mqtt_settings", web)
+        self.assertIn("/api/setup/openai", web)
+        self.assertIn("update_openai_settings", web)

@@ -11,9 +11,11 @@ from pathlib import Path
 
 from .config import load_config
 from .settings import (
+    masked_openai_settings,
     masked_mqtt_settings,
     mqtt_settings,
     setup_status,
+    update_openai_settings,
     update_mqtt_settings,
     validate_host,
     validate_port,
@@ -47,6 +49,8 @@ class PorchlightHTTPRequestHandler(SimpleHTTPRequestHandler):
             if path == "/api/setup/mqtt":
                 self.write_json({"mqtt": update_mqtt_settings(self.server.config.config_dir, payload)})
                 self.server.request_apply("restart_bridge")
+            elif path == "/api/setup/openai":
+                self.write_json({"openai": update_openai_settings(self.server.config.config_dir, payload)})
             elif path == "/api/setup/mqtt/test":
                 self.write_json(self.server.test_mqtt(payload))
             elif path == "/api/setup/wifi":
@@ -97,6 +101,7 @@ class PorchlightHTTPServer(ThreadingHTTPServer):
         return {
             "setup": setup_status(self.config.config_dir),
             "mqtt": masked_mqtt_settings(self.config.config_dir),
+            "openai": masked_openai_settings(self.config.config_dir),
             "wifi": self.wifi_payload(),
         }
 

@@ -9,6 +9,7 @@ INSTALL_DIR="$ROOT/opt/$PROJECT"
 CONFIG_DIR="$ROOT/etc/$PROJECT"
 CONFIG_FILE="$CONFIG_DIR/$PROJECT.env"
 MQTT_CONFIG_FILE="$CONFIG_DIR/$PROJECT.mqtt.env"
+OPENAI_CONFIG_FILE="$CONFIG_DIR/$PROJECT.openai.env"
 SYSTEMD_DIR="$ROOT/etc/systemd/system"
 DEFAULT_MANIFEST_URL="https://github.com/azide0x37/porchlight/releases/latest/download/manifest.json"
 TMP_DIR="${TMPDIR:-/tmp}/$PROJECT-install.$$"
@@ -233,6 +234,7 @@ install_file "$SRC_ROOT/systemd/porchlight-setup-apply.service" "$RELEASE_DIR/sy
 install_file "$SRC_ROOT/systemd/porchlight-setup-apply.path" "$RELEASE_DIR/systemd/porchlight-setup-apply.path" 0644
 install_file "$SRC_ROOT/etc/porchlight.env.example" "$RELEASE_DIR/etc/porchlight.env.example" 0644
 install_file "$SRC_ROOT/etc/porchlight.mqtt.env.example" "$RELEASE_DIR/etc/porchlight.mqtt.env.example" 0644
+install_file "$SRC_ROOT/etc/porchlight.openai.env.example" "$RELEASE_DIR/etc/porchlight.openai.env.example" 0644
 install_file "$SRC_ROOT/etc/porchlight.setup.env.example" "$RELEASE_DIR/etc/porchlight.setup.env.example" 0644
 install_file "$SRC_ROOT/README.md" "$RELEASE_DIR/README.md" 0644
 install_file "$SRC_ROOT/README.md" "$RELEASE_DIR/doc/README.md" 0644
@@ -256,6 +258,10 @@ install_static_webroot
 
 if [ ! -f "$MQTT_CONFIG_FILE" ]; then
   install_file "$SRC_ROOT/etc/porchlight.mqtt.env.example" "/etc/$PROJECT/porchlight.mqtt.env" 0600
+fi
+
+if [ ! -f "$OPENAI_CONFIG_FILE" ]; then
+  install_file "$SRC_ROOT/etc/porchlight.openai.env.example" "/etc/$PROJECT/porchlight.openai.env" 0600
 fi
 
 if [ ! -f "$CONFIG_FILE" ]; then

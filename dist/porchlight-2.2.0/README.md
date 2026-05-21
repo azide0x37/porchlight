@@ -102,10 +102,10 @@ Tailscale evidence.
 `/var/lib/porchlight/www` on port `8765`. The renderer writes plain JSON and
 the hosted HTML/CSS/JS assets adapted from `azide0x37/porchlight-dashboard`, so
 the web service does not need scanner privileges or a Node runtime. The web
-service also exposes constrained `/api/setup/*` JSON endpoints for MQTT and
-appliance setup writes under `/etc/porchlight`; it does not accept arbitrary
-commands or service names from the browser. The dashboard reads `/status.json`,
-`/hosts.json`, `/services.json`,
+service also exposes constrained `/api/setup/*` JSON endpoints for MQTT, OpenAI
+key, and appliance setup writes under `/etc/porchlight`; it does not accept
+arbitrary commands or service names from the browser. The dashboard reads
+`/status.json`, `/hosts.json`, `/services.json`,
 `/changes.json`, and `/snapshot.json` at runtime, which keeps the appliance UI
 in sync with the latest scanner render.
 
@@ -184,6 +184,13 @@ the broker host, port, credentials, discovery prefix, node ID, and base topic.
 The adapter is `mosquitto_pub`, and the dashboard never returns the stored MQTT
 password after saving it.
 
+## OpenAI Key
+
+Optional OpenAI credentials live in `/etc/porchlight/porchlight.openai.env`.
+Use the dashboard Settings view to store or clear `OPENAI_API_KEY` without
+editing appliance files by hand. Setup API responses only report whether a key
+is set; they never return the key value after saving it.
+
 ## Appliance Setup
 
 For preinstalled Raspberry Pi Zero 2 W images, install Porchlight in appliance
@@ -197,9 +204,10 @@ Appliance mode adds NetworkManager and Avahi dependencies on apt-based hosts,
 generates `/etc/porchlight/setup.env`, enables `porchlight-setup-ap.service`,
 and starts a temporary Wi-Fi setup access point when no Wi-Fi connection is
 active and `/etc/porchlight/setup-complete` is absent. The setup UI is available
-from the Porchlight dashboard and writes Wi-Fi plus Home Assistant MQTT settings
-without requiring SSH. Finishing setup writes `/etc/porchlight/setup-complete`
-and requests the allowlisted setup helper to shut down the temporary AP.
+from the Porchlight dashboard and writes Wi-Fi, Home Assistant MQTT, and OpenAI
+key settings without requiring SSH. Finishing setup writes
+`/etc/porchlight/setup-complete` and requests the allowlisted setup helper to
+shut down the temporary AP.
 
 Normal installs do not enable the setup AP or change host networking.
 
@@ -313,9 +321,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-2.1.3/`
-- `dist/porchlight-2.1.3.tar.gz`
-- `dist/porchlight-2.1.3.tar.gz.sha256`
+- `dist/porchlight-2.2.0/`
+- `dist/porchlight-2.2.0.tar.gz`
+- `dist/porchlight-2.2.0.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
@@ -325,7 +333,7 @@ This writes:
 | --- | --- | --- |
 | systemd owns lifecycle | PASS | `systemd/porchlight-ha-mqtt-bridge.service` calls `/opt/porchlight/current/bin/porchlight-ha-mqtt-bridge` |
 | systemd timer owns scheduled refresh | PASS | `systemd/porchlight-scan.timer` and `systemd/porchlight-ha-mqtt-bridge.timer` run scan and publish loops |
-| config under `/etc/porchlight` | PASS | `etc/porchlight.mqtt.env.example`, `bin/install.sh` preserves existing config |
+| config under `/etc/porchlight` | PASS | `etc/porchlight.mqtt.env.example`, `etc/porchlight.openai.env.example`, `bin/install.sh` preserves existing config |
 | runtime under `/opt/porchlight/releases/<version>` | PASS | `bin/install.sh` installs to `/opt/porchlight/releases/$(VERSION)` |
 | `/opt/porchlight/current` active link | PASS | `bin/install.sh` updates the symlink after staging release files |
 | units call `/opt/porchlight/current/bin/...` | PASS | `systemd/porchlight-ha-mqtt-bridge.service` `ExecStart` |

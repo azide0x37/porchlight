@@ -14,7 +14,15 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from porchlight.settings import atomic_write_env, masked_mqtt_settings, split_nmcli_fields, update_mqtt_settings, wifi_networks
+from porchlight.settings import (
+    atomic_write_env,
+    masked_mqtt_settings,
+    masked_openai_settings,
+    split_nmcli_fields,
+    update_mqtt_settings,
+    update_openai_settings,
+    wifi_networks,
+)
 
 
 class SettingsFileTest(unittest.TestCase):
@@ -58,6 +66,39 @@ class SettingsFileTest(unittest.TestCase):
                 update_mqtt_settings(Path(tmp), {"host": "bad host"})
             with self.assertRaises(ValueError):
                 update_mqtt_settings(Path(tmp), {"port": 70000})
+
+    def test_openai_key_update_preserves_unknown_keys_and_masks_secret(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_dir = Path(tmp)
+            openai_env = config_dir / "porchlight.openai.env"
+            openai_env.write_text("CUSTOM_FLAG=keep\nOPENAI_API_KEY=old-secret\n", encoding="utf-8")
+
+            masked = update_openai_settings(config_dir, {"api_key": "sk-test-secret"})
+
+            text = openai_env.read_text(encoding="utf-8")
+            self.assertIn("CUSTOM_FLAG=keep", text)
+            self.assertIn("OPENAI_API_KEY=sk-test-secret", text)
+            self.assertNotIn("sk-test-secret", json.dumps(masked))
+            self.assertTrue(masked["api_key_set"])
+            self.assertEqual(oct(openai_env.stat().st_mode & 0o777), "0o600")
+
+            masked = update_openai_settings(config_dir, {})
+            self.assertTrue(masked["api_key_set"])
+
+            masked = update_openai_settings(config_dir, {"api_key": ""})
+            self.assertFalse(masked["api_key_set"])
+
+    def test_invalid_openai_keys_are_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                update_openai_settings(Path(tmp), {"api_key": "sk bad"})
+            with self.assertRaises(ValueError):
+                update_openai_settings(Path(tmp), {"api_key": "sk-bad\nnext"})
+
+    def test_openai_defaults_mask_empty_key(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            masked = masked_openai_settings(Path(tmp))
+            self.assertFalse(masked["api_key_set"])
 
     def test_mock_wifi_networks_feed_setup_dropdown(self):
         with mock.patch.dict("os.environ", {"PORCHLIGHT_MOCK_WIFI_SSIDS": "Kitchen WiFi,Hidden Candidate"}, clear=False):
@@ -142,6 +183,12 @@ class WebSetupApiTest(unittest.TestCase):
                 self.assertNotIn("secret", json.dumps(saved))
                 self.assertIn("MQTT_PASSWORD=secret", (root / "etc/porchlight/porchlight.mqtt.env").read_text())
                 self.assertEqual((root / "run/porchlight/setup-action").read_text().strip(), "restart_bridge")
+
+                saved = self.request_json(f"{base}/api/setup/openai", {"api_key": "sk-test-secret"})
+
+                self.assertTrue(saved["openai"]["api_key_set"])
+                self.assertNotIn("sk-test-secret", json.dumps(saved))
+                self.assertIn("OPENAI_API_KEY=sk-test-secret", (root / "etc/porchlight/porchlight.openai.env").read_text())
             finally:
                 process.terminate()
                 try:

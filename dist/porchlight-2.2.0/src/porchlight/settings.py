@@ -24,6 +24,10 @@ MQTT_KEYS = (
     "HA_BASE_TOPIC",
 )
 
+OPENAI_KEYS = (
+    "OPENAI_API_KEY",
+)
+
 DEFAULT_MQTT = {
     "HA_MQTT_ENABLE": "1",
     "MQTT_HOST": "127.0.0.1",
@@ -35,6 +39,10 @@ DEFAULT_MQTT = {
     "HA_NODE_ID": "porchlight",
     "HA_DEVICE_NAME": "Porchlight LAN Directory",
     "HA_BASE_TOPIC": "porchlight",
+}
+
+DEFAULT_OPENAI = {
+    "OPENAI_API_KEY": "",
 }
 
 HOST_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
@@ -133,6 +141,42 @@ def update_mqtt_settings(config_dir: Path, payload: dict[str, object]) -> dict[s
     merged = {**existing, **updates}
     atomic_write_env(config_dir / "porchlight.mqtt.env", {key: merged[key] for key in MQTT_KEYS}, 0o600)
     return masked_mqtt_settings(config_dir)
+
+
+def openai_settings(config_dir: Path) -> dict[str, str]:
+    values = dict(DEFAULT_OPENAI)
+    values.update(load_env_file(config_dir / "porchlight.openai.env"))
+    return {key: values.get(key, "") for key in OPENAI_KEYS}
+
+
+def masked_openai_settings(config_dir: Path) -> dict[str, object]:
+    values = openai_settings(config_dir)
+    return {
+        "api_key_set": bool(values.get("OPENAI_API_KEY")),
+    }
+
+
+def update_openai_settings(config_dir: Path, payload: dict[str, object]) -> dict[str, object]:
+    existing = openai_settings(config_dir)
+    updates: dict[str, str] = {}
+
+    if "api_key" in payload:
+        updates["OPENAI_API_KEY"] = validate_openai_api_key(payload["api_key"])
+
+    merged = {**existing, **updates}
+    atomic_write_env(config_dir / "porchlight.openai.env", {key: merged[key] for key in OPENAI_KEYS}, 0o600)
+    return masked_openai_settings(config_dir)
+
+
+def validate_openai_api_key(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if len(text) > 512 or any(char.isspace() for char in text):
+        raise ValueError("OpenAI API key must be a single token without spaces")
+    if any(ord(char) < 33 or ord(char) > 126 for char in text):
+        raise ValueError("OpenAI API key contains unsupported characters")
+    return text
 
 
 def validate_host(value: object) -> str:

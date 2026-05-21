@@ -1,5 +1,13 @@
 # Release
 
+## 2.2.0
+
+- Added dashboard Settings support for storing and clearing an OpenAI API key
+  through `/api/setup/openai`, with masked setup responses that never echo the
+  secret value.
+- Installer now creates and preserves `/etc/porchlight/porchlight.openai.env`
+  with mode `0600`.
+
 ## 2.1.3
 
 - Refresh packaged static dashboard assets into `/var/lib/porchlight/www`

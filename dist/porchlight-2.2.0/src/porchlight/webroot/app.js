@@ -9,7 +9,7 @@ const state = {
   groupBy: "subnet",
   currentRoute: null,
   suppressHashRender: false,
-  setupStatus: { setup: {}, mqtt: {}, wifi: {} },
+  setupStatus: { setup: {}, mqtt: {}, openai: {}, wifi: {} },
 };
 
 const themeModes = ["light", "system", "dark"];
@@ -168,14 +168,14 @@ async function load() {
     json("/services.json", { services: [] }),
     json("/changes.json", { recent_runs: [] }),
     json("/snapshot.json", {}),
-    json("/api/setup/status", { setup: {}, mqtt: {}, wifi: {} }),
+    json("/api/setup/status", { setup: {}, mqtt: {}, openai: {}, wifi: {} }),
   ]);
   state.status = status || {};
   state.hosts = Array.isArray(hosts.hosts) ? hosts.hosts : [];
   state.services = Array.isArray(services.services) ? services.services : [];
   state.changes = changes || { recent_runs: [] };
   state.snapshot = snapshot || {};
-  state.setupStatus = setupStatus || { setup: {}, mqtt: {}, wifi: {} };
+  state.setupStatus = setupStatus || { setup: {}, mqtt: {}, openai: {}, wifi: {} };
 }
 
 async function postJson(path, payload) {
@@ -746,6 +746,7 @@ function renderAnalysis() {
 function renderSettings() {
   const setup = state.setupStatus.setup || {};
   const mqtt = state.setupStatus.mqtt || {};
+  const openai = state.setupStatus.openai || {};
   const wifi = state.setupStatus.wifi || {};
   const setupMode = setup.appliance_mode && !setup.setup_complete;
   const networks = Array.isArray(wifi.networks) ? wifi.networks : [];
@@ -774,6 +775,7 @@ function renderSettings() {
       <div class="stats">
         ${stat("MQTT", mqtt.enabled ? "Enabled" : "Disabled", mqtt.host ? `${mqtt.host}:${mqtt.port || 1883}` : "no broker", "var(--porch-sky)")}
         ${stat("Password", mqtt.password_set ? "Stored" : "Empty", "never shown after saving", "var(--porch-amber)")}
+        ${stat("OpenAI", openai.api_key_set ? "Stored" : "Empty", "never shown after saving", "var(--porch-leaf)")}
         ${stat("Wi-Fi", wifi.connected ? "Connected" : "Not connected", wifi.ssid || wifi.message || "setup AP available", "var(--porch-leaf)")}
         ${stat("Address", setup.mdns_name || "porchlight.local", setup.setup_ssid || "local dashboard", "var(--porch-clay)")}
       </div>
@@ -798,6 +800,17 @@ function renderSettings() {
           <button type="button" data-action="test-mqtt">Test publish</button>
         </div>
         <p class="form-result" id="mqtt-result" role="status"></p>
+      </form>
+    </section>
+    <section class="section">
+      ${sectionHead("OpenAI", "API key")}
+      <form class="settings-form" id="openai-settings">
+        <label><span>API key</span><input name="api_key" type="password" placeholder="${openai.api_key_set ? "Stored - leave blank to keep" : ""}" autocomplete="off"></label>
+        <div class="form-actions">
+          <button type="submit">Save OpenAI</button>
+          <button type="button" data-action="clear-openai">Clear key</button>
+        </div>
+        <p class="form-result" id="openai-result" role="status"></p>
       </form>
     </section>
   </div>`;
@@ -885,6 +898,8 @@ function formPayload(form) {
     payload.enabled = form.elements.enabled.checked;
     payload.port = Number(payload.port || 1883);
     if (!payload.password) delete payload.password;
+  } else if (form.id === "openai-settings") {
+    if (!payload.api_key) delete payload.api_key;
   } else if (form.id === "wifi-settings") {
     payload.ssid = String(payload.ssid_choice || payload.ssid || "").trim();
     delete payload.ssid_choice;
@@ -919,6 +934,30 @@ function bindSettings() {
       setResult("#mqtt-result", data.message || "Test publish sent.");
     } catch (error) {
       setResult("#mqtt-result", error.message, false);
+    }
+  });
+  const openai = document.querySelector("#openai-settings");
+  if (openai) {
+    openai.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const data = await postJson("/api/setup/openai", formPayload(openai));
+        state.setupStatus.openai = data.openai || state.setupStatus.openai;
+        if (openai.elements.api_key) openai.elements.api_key.value = "";
+        setResult("#openai-result", "OpenAI settings saved.");
+      } catch (error) {
+        setResult("#openai-result", error.message, false);
+      }
+    });
+  }
+  document.querySelector("[data-action='clear-openai']")?.addEventListener("click", async () => {
+    try {
+      const data = await postJson("/api/setup/openai", { api_key: "" });
+      state.setupStatus.openai = data.openai || state.setupStatus.openai;
+      if (openai?.elements?.api_key) openai.elements.api_key.value = "";
+      setResult("#openai-result", "OpenAI key cleared.");
+    } catch (error) {
+      setResult("#openai-result", error.message, false);
     }
   });
   const wifi = document.querySelector("#wifi-settings");
