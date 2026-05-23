@@ -222,6 +222,11 @@ class WebSetupApiTest(unittest.TestCase):
                 self.assertEqual(saved["openai"]["analysis_status"]["status"], "missing")
                 self.assertNotIn("sk-test-secret", json.dumps(saved))
                 self.assertIn("OPENAI_API_KEY=sk-test-secret", (root / "etc/porchlight/porchlight.openai.env").read_text())
+
+                triggered = self.request_json(f"{base}/api/setup/openai/analyze", {})
+                self.assertTrue(triggered["ok"])
+                self.assertEqual(triggered["message"], "AI analysis trigger accepted.")
+                self.assertTrue(triggered["openai"]["api_key_set"])
             finally:
                 process.terminate()
                 try:

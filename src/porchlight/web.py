@@ -52,6 +52,8 @@ class PorchlightHTTPRequestHandler(SimpleHTTPRequestHandler):
             elif path == "/api/setup/openai":
                 settings = update_openai_settings(self.server.config.config_dir, payload)
                 self.write_json({"openai": self.server.openai_payload(settings)})
+            elif path == "/api/setup/openai/analyze":
+                self.write_json(self.server.trigger_ai_analysis())
             elif path == "/api/setup/mqtt/test":
                 self.write_json(self.server.test_mqtt(payload))
             elif path == "/api/setup/wifi":
@@ -126,6 +128,11 @@ class PorchlightHTTPServer(ThreadingHTTPServer):
             "model": data.get("model"),
             "service_tier": data.get("service_tier"),
             "error": data.get("error"),
+            "http_status": data.get("http_status"),
+            "retry_after": data.get("retry_after"),
+            "analysis_stale": data.get("analysis_stale"),
+            "last_success_at": data.get("last_success_at"),
+            "last_success_snapshot_hash": data.get("last_success_snapshot_hash"),
         }
 
     def wifi_payload(self) -> dict[str, object]:
@@ -174,6 +181,20 @@ class PorchlightHTTPServer(ThreadingHTTPServer):
         if result.returncode != 0:
             return {"ok": False, "error": result.stderr.strip() or "MQTT publish failed"}
         return {"ok": True, "message": "test publish sent"}
+
+    def trigger_ai_analysis(self) -> dict[str, object]:
+        if not self.apply:
+            return {"ok": True, "message": "AI analysis trigger accepted.", "openai": self.openai_payload()}
+        result = subprocess.run(
+            ["systemctl", "start", "--no-block", "porchlight-ai-analysis.service"],
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise OSError(result.stderr.strip() or "failed to trigger AI analysis")
+        return {"ok": True, "message": "AI analysis queued.", "openai": self.openai_payload()}
 
     def finish_setup(self) -> dict[str, object]:
         status = setup_status(self.config.config_dir)

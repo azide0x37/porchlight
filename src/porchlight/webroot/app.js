@@ -356,7 +356,12 @@ function sectionHead(eyebrow, title, aside = "") {
 
 function aiAnalysisReady() {
   const openai = state.setupStatus.openai || {};
-  return Boolean(openai.analysis_enabled && state.analysis && state.analysis.status === "ok");
+  return Boolean(
+    openai.analysis_enabled
+      && state.analysis
+      && state.analysis.environment
+      && (state.analysis.status === "ok" || state.analysis.analysis_stale)
+  );
 }
 
 function generatedEnvironmentAnalysis() {
@@ -381,12 +386,25 @@ function generatedHostAnalysis(ip) {
 
 function analysisStatusText(openai) {
   const status = openai.analysis_status || state.analysis || {};
-  const parts = [`Last analysis: ${status.status || "missing"}`];
+  const parts = [`Last analysis: ${analysisStatusLabel(status.status)}`];
   if (status.generated_at) parts.push(status.generated_at);
   if (status.model) parts.push(status.model);
   if (status.service_tier) parts.push(status.service_tier);
+  if (status.retry_after) parts.push(`retry after ${status.retry_after}`);
+  if (status.last_success_at) parts.push(`last successful ${status.last_success_at}`);
   if (status.error) parts.push(status.error);
   return parts.join(" - ");
+}
+
+function analysisStatusLabel(status) {
+  return {
+    missing_key: "missing key",
+    missing_snapshot: "missing snapshot",
+    rate_limited: "rate limited",
+    upstream_error: "upstream error",
+    invalid_response: "invalid response",
+    request_failed: "request failed",
+  }[status] || status || "missing";
 }
 
 function analysisForEnvironment() {
@@ -884,6 +902,7 @@ function renderSettings() {
         <p class="form-result" role="status">${escapeHtml(analysisStatusText(openai))}</p>
         <div class="form-actions">
           <button type="submit">Save AI Settings</button>
+          <button type="button" data-action="run-analysis">Trigger analysis</button>
           <button type="button" data-action="clear-openai">Clear key</button>
         </div>
         <p class="form-result" id="openai-result" role="status"></p>
@@ -1033,6 +1052,17 @@ function bindSettings() {
       state.setupStatus.openai = data.openai || state.setupStatus.openai;
       if (openai?.elements?.api_key) openai.elements.api_key.value = "";
       setResult("#openai-result", "OpenAI key cleared.");
+    } catch (error) {
+      setResult("#openai-result", error.message, false);
+    }
+  });
+  document.querySelector("[data-action='run-analysis']")?.addEventListener("click", async () => {
+    setResult("#openai-result", "Starting AI analysis...");
+    try {
+      const data = await postJson("/api/setup/openai/analyze", {});
+      state.setupStatus.openai = data.openai || state.setupStatus.openai;
+      render();
+      setResult("#openai-result", data.message || "AI analysis queued.");
     } catch (error) {
       setResult("#openai-result", error.message, false);
     }

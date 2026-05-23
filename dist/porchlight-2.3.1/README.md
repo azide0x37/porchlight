@@ -193,13 +193,17 @@ analysis is disabled by default. When enabled, `porchlight-ai-analysis.service`
 runs asynchronously from `porchlight-ai-analysis.timer`, reads the rendered
 snapshot JSON, calls the configured OpenAI model, and writes
 `/var/lib/porchlight/www/analysis.json`. Scan and render jobs never wait for the
-model call.
+model call. The Settings view can also queue an immediate run through the exact
+`/api/setup/openai/analyze` setup endpoint.
 
 Setup API responses only report whether a key is set plus non-secret AI
 settings and worker status; they never return the key value. If AI analysis is
 disabled, the key is missing, the snapshot is unchanged, or the API call fails,
 the dashboard keeps using deterministic local summaries and scan-to-scan
-irregularities from `changes.json`.
+irregularities from `changes.json`. OpenAI HTTP 429 responses are recorded as
+`rate_limited` with retry metadata when available; if a previous successful
+generated analysis exists, Porchlight keeps it available as stale analysis while
+the timer retries.
 
 ## Appliance Setup
 
@@ -331,9 +335,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-2.3.0/`
-- `dist/porchlight-2.3.0.tar.gz`
-- `dist/porchlight-2.3.0.tar.gz.sha256`
+- `dist/porchlight-2.3.1/`
+- `dist/porchlight-2.3.1.tar.gz`
+- `dist/porchlight-2.3.1.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
@@ -350,7 +354,7 @@ This writes:
 | scanner writes state ledger | PASS | `src/porchlight-scan`, `src/porchlight/store.py`, `tests/test_scan.py` |
 | scan irregularities are recorded | PASS | `src/porchlight/store.py`, `src/porchlight/render.py`, `tests/test_store_merge.py` |
 | static dashboard is rendered | PASS | `bin/install.sh` refreshes static web assets, plus `src/porchlight-render`, `src/porchlight/render.py`, `src/porchlight/webroot`, vendored fonts/icons, `systemd/porchlight-render.timer` |
-| AI analysis sidecar is opt-in and asynchronous | PASS | `src/porchlight-ai-analysis`, `src/porchlight/ai_analysis.py`, `systemd/porchlight-ai-analysis.timer`, `tests/test_ai_analysis.py` |
+| AI analysis sidecar is opt-in and asynchronous | PASS | `src/porchlight-ai-analysis`, `src/porchlight/ai_analysis.py`, `/api/setup/openai/analyze`, `systemd/porchlight-ai-analysis.timer`, `tests/test_ai_analysis.py` |
 | local web dashboard and setup API are systemd-owned | PASS | `src/porchlight-web`, `src/porchlight/web.py` no-store headers and `/api/setup/*`, `systemd/porchlight-web.service` |
 | no-SSH appliance setup is optional | PASS | `bin/install.sh --appliance`, `bin/setup-ap.sh`, `bin/setup-apply.sh`, `systemd/porchlight-setup-ap.service`, `systemd/porchlight-setup-apply.path` |
 | appliance health is written | PASS | `src/porchlight-health`, `systemd/porchlight-health.timer` |

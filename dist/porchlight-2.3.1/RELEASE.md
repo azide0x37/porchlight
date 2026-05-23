@@ -1,5 +1,14 @@
 # Release
 
+## 2.3.1
+
+- Classified OpenAI HTTP 429 responses as `rate_limited` instead of surfacing
+  raw HTTP exceptions in the dashboard.
+- Preserved the last successful generated analysis as stale context when a
+  transient upstream failure occurs.
+- Added a Settings button and exact `/api/setup/openai/analyze` endpoint to
+  queue an immediate AI analysis run.
+
 ## 2.3.0
 
 - Added opt-in AI-generated environment, protocol, host, and irregularity

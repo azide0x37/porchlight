@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+from urllib.error import HTTPError
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +50,46 @@ class AiAnalysisTest(unittest.TestCase):
         )
         (www / "changes.json").write_text(json.dumps({"irregularities": [], "recent_runs": []}), encoding="utf-8")
 
+    def write_enabled_openai_config(self, root: Path) -> None:
+        config_dir = root / "etc/porchlight"
+        config_dir.mkdir(parents=True)
+        (config_dir / "porchlight.openai.env").write_text(
+            "\n".join(
+                [
+                    "OPENAI_API_KEY=sk-test-secret",
+                    "PORCHLIGHT_AI_ANALYSIS_ENABLE=1",
+                    "PORCHLIGHT_AI_MODEL=gpt-5-mini",
+                    "PORCHLIGHT_AI_SERVICE_TIER=flex",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def generated_analysis(self):
+        return {
+            "environment": {
+                "grade": "B",
+                "headline": "Network looks steady.",
+                "summary": "One host and one SSH service are visible.",
+                "highlights": ["Snapshot is current."],
+                "concerns": [],
+                "suggestions": [],
+            },
+            "protocols": [
+                {
+                    "name": "ssh",
+                    "grade": "B",
+                    "headline": "SSH is present.",
+                    "summary": "One host answers on SSH.",
+                    "highlights": [],
+                    "concerns": [],
+                }
+            ],
+            "hosts": [{"ip": "192.168.1.10", "grade": "B", "headline": "Host is ordinary.", "summary": "SSH only.", "notes": []}],
+            "irregularities": [],
+        }
+
     def test_disabled_analysis_writes_local_status_without_api_call(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -79,43 +120,9 @@ class AiAnalysisTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.write_snapshot(root)
-            config_dir = root / "etc/porchlight"
-            config_dir.mkdir(parents=True)
-            (config_dir / "porchlight.openai.env").write_text(
-                "\n".join(
-                    [
-                        "OPENAI_API_KEY=sk-test-secret",
-                        "PORCHLIGHT_AI_ANALYSIS_ENABLE=1",
-                        "PORCHLIGHT_AI_MODEL=gpt-5-mini",
-                        "PORCHLIGHT_AI_SERVICE_TIER=flex",
-                    ]
-                )
-                + "\n",
-                encoding="utf-8",
-            )
+            self.write_enabled_openai_config(root)
             config = self.config_for(root)
-            generated = {
-                "environment": {
-                    "grade": "B",
-                    "headline": "Network looks steady.",
-                    "summary": "One host and one SSH service are visible.",
-                    "highlights": ["Snapshot is current."],
-                    "concerns": [],
-                    "suggestions": [],
-                },
-                "protocols": [
-                    {
-                        "name": "ssh",
-                        "grade": "B",
-                        "headline": "SSH is present.",
-                        "summary": "One host answers on SSH.",
-                        "highlights": [],
-                        "concerns": [],
-                    }
-                ],
-                "hosts": [{"ip": "192.168.1.10", "grade": "B", "headline": "Host is ordinary.", "summary": "SSH only.", "notes": []}],
-                "irregularities": [],
-            }
+            generated = self.generated_analysis()
 
             def fake_urlopen(request, timeout):
                 body = json.loads(request.data.decode("utf-8"))
@@ -135,6 +142,39 @@ class AiAnalysisTest(unittest.TestCase):
             output = json.loads((root / "var/lib/porchlight/www/analysis.json").read_text(encoding="utf-8"))
             self.assertEqual(output["source"], "openai")
             self.assertEqual(output["snapshot_hash"], result["snapshot_hash"])
+
+    def test_rate_limited_response_is_classified_and_preserves_previous_analysis(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_snapshot(root)
+            self.write_enabled_openai_config(root)
+            previous = {
+                "status": "ok",
+                "source": "openai",
+                "generated_at": "2026-05-22T00:00:00Z",
+                "snapshot_hash": "previous-snapshot",
+                "model": "gpt-5-mini",
+                "service_tier": "flex",
+                **self.generated_analysis(),
+            }
+            analysis_path = root / "var/lib/porchlight/www/analysis.json"
+            analysis_path.write_text(json.dumps(previous), encoding="utf-8")
+            config = self.config_for(root)
+
+            def fake_urlopen(request, timeout):
+                raise HTTPError(request.full_url, 429, "Too Many Requests", {"Retry-After": "60"}, None)
+
+            with mock.patch("porchlight.ai_analysis.urlopen", side_effect=fake_urlopen):
+                result = run_ai_analysis(config)
+
+            self.assertEqual(result["status"], "rate_limited")
+            self.assertEqual(result["http_status"], 429)
+            self.assertEqual(result["retry_after"], "60")
+            self.assertIn("rate limit", result["error"])
+            self.assertNotIn("HTTP Error 429", result["error"])
+            self.assertTrue(result["analysis_stale"])
+            self.assertEqual(result["last_success_at"], "2026-05-22T00:00:00Z")
+            self.assertEqual(result["environment"]["headline"], "Network looks steady.")
 
 
 if __name__ == "__main__":

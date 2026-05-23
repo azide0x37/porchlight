@@ -102,12 +102,32 @@ def run_ai_analysis(config: Config) -> dict[str, object]:
     if existing.get("status") == "ok" and existing.get("snapshot_hash") == snapshot_hash:
         return existing
 
-    write_status(output_path, "pending", model, service_tier, snapshot_hash=snapshot_hash)
+    write_status(output_path, "pending", model, service_tier, snapshot_hash=snapshot_hash, stale_from=existing)
     try:
         generated = request_analysis(api_key, model, service_tier, analysis_input)
         payload = normalize_generated_analysis(generated)
-    except (HTTPError, URLError, TimeoutError, ValueError, OSError) as exc:
-        return write_status(output_path, "error", model, service_tier, snapshot_hash=snapshot_hash, error=str(exc))
+    except HTTPError as exc:
+        return write_http_error_status(output_path, exc, model, service_tier, snapshot_hash, existing)
+    except (URLError, TimeoutError, OSError) as exc:
+        return write_status(
+            output_path,
+            "upstream_error",
+            model,
+            service_tier,
+            snapshot_hash=snapshot_hash,
+            error=describe_network_error(exc),
+            stale_from=existing,
+        )
+    except ValueError as exc:
+        return write_status(
+            output_path,
+            "invalid_response",
+            model,
+            service_tier,
+            snapshot_hash=snapshot_hash,
+            error=str(exc),
+            stale_from=existing,
+        )
 
     result = {
         "status": "ok",
@@ -239,6 +259,76 @@ def normalize_generated_analysis(payload: dict[str, object]) -> dict[str, object
     }
 
 
+def write_http_error_status(
+    path: Path,
+    exc: HTTPError,
+    model: str,
+    service_tier: str,
+    snapshot_hash: str,
+    stale_from: dict[str, object],
+) -> dict[str, object]:
+    status = "rate_limited" if exc.code == 429 else "request_failed"
+    if exc.code in {500, 502, 503, 504}:
+        status = "upstream_error"
+    retry_after = exc.headers.get("Retry-After") if exc.headers else None
+    close = getattr(exc, "close", None)
+    if callable(close):
+        close()
+    return write_status(
+        path,
+        status,
+        model,
+        service_tier,
+        snapshot_hash=snapshot_hash,
+        error=describe_http_error(exc),
+        http_status=exc.code,
+        retry_after=retry_after,
+        stale_from=stale_from,
+    )
+
+
+def describe_http_error(exc: HTTPError) -> str:
+    if exc.code == 429:
+        return "OpenAI rate limit reached; Porchlight will retry on the next timer run."
+    if exc.code == 401:
+        return "OpenAI rejected the API key; check the key saved in Settings."
+    if exc.code == 403:
+        return "OpenAI rejected the request for this account or project."
+    if exc.code in {500, 502, 503, 504}:
+        return "OpenAI service is temporarily unavailable; Porchlight will retry on the next timer run."
+    return f"OpenAI request failed with HTTP {exc.code}."
+
+
+def describe_network_error(exc: BaseException) -> str:
+    if isinstance(exc, TimeoutError):
+        return "OpenAI request timed out; Porchlight will retry on the next timer run."
+    if isinstance(exc, URLError):
+        return f"OpenAI request could not be completed: {exc.reason}"
+    return "OpenAI request could not be completed; Porchlight will retry on the next timer run."
+
+
+def has_generated_analysis(payload: dict[str, object]) -> bool:
+    return (
+        isinstance(payload.get("environment"), dict)
+        and isinstance(payload.get("protocols"), list)
+        and isinstance(payload.get("hosts"), list)
+        and isinstance(payload.get("irregularities"), list)
+    )
+
+
+def attach_stale_analysis(payload: dict[str, object], existing: dict[str, object]) -> None:
+    if not has_generated_analysis(existing):
+        return
+    for key in ("source", "environment", "protocols", "hosts", "irregularities"):
+        if key in existing:
+            payload[key] = existing[key]
+    payload["analysis_stale"] = True
+    if existing.get("generated_at"):
+        payload["last_success_at"] = existing["generated_at"]
+    if existing.get("snapshot_hash"):
+        payload["last_success_snapshot_hash"] = existing["snapshot_hash"]
+
+
 def write_status(
     path: Path,
     status: str,
@@ -246,6 +336,9 @@ def write_status(
     service_tier: str,
     snapshot_hash: str | None = None,
     error: str | None = None,
+    http_status: int | None = None,
+    retry_after: str | None = None,
+    stale_from: dict[str, object] | None = None,
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "status": status,
@@ -257,6 +350,12 @@ def write_status(
         payload["snapshot_hash"] = snapshot_hash
     if error:
         payload["error"] = error
+    if http_status:
+        payload["http_status"] = http_status
+    if retry_after:
+        payload["retry_after"] = retry_after
+    if stale_from:
+        attach_stale_analysis(payload, stale_from)
     atomic_write_json(path, payload)
     return payload
 
