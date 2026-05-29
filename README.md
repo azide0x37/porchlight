@@ -10,6 +10,30 @@ writer, first-boot appliance onboarding, and Home Assistant MQTT bridge.
 Discovery is useful with only passive evidence, and active probing is
 safety-gated by interface, private-CIDR, and maximum-prefix policy.
 
+## Live Demo
+
+**Try the shareable mock deployment:
+[porchlight.transpired.dev](https://porchlight.transpired.dev/).** It is backed
+by synthetic LAN data at appliance scale, with no real AI endpoint or production
+network data.
+
+<p>
+  <a href="https://porchlight.transpired.dev/">
+    <img src="docs/media/porchlight-demo-hosts.png" alt="Porchlight demo dashboard showing subnet-grouped hosts and service badges" width="900">
+  </a>
+</p>
+
+<p>
+  <img src="docs/media/porchlight-demo-walkthrough.gif" alt="Animated walkthrough of the Porchlight demo dashboard" width="360">
+</p>
+
+Porchlight also publishes a single Home Assistant MQTT device with summarized
+scanner state and narrow controls:
+
+<p>
+  <img src="docs/media/porchlight-home-assistant-device.png" alt="Home Assistant MQTT device view for Porchlight LAN Directory" width="520">
+</p>
+
 ```text
 scan + observe
   porchlight-discover.service  -> quick inventory mode
