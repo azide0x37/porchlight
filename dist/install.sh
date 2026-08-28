@@ -304,7 +304,8 @@ if [ -z "$ROOT" ]; then
     fi
   fi
   systemctl daemon-reload
-  systemctl enable --now porchlight-web.service porchlight-discover.timer porchlight-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer porchlight-ai-analysis.timer
+  systemctl enable porchlight-web.service porchlight-discover.timer porchlight-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer porchlight-ai-analysis.timer
+  systemctl restart porchlight-web.service porchlight-discover.timer porchlight-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer porchlight-ai-analysis.timer
   if [ "$APPLIANCE_MODE" = "1" ]; then
     systemctl enable --now porchlight-setup-apply.path porchlight-setup-ap.service
   fi
