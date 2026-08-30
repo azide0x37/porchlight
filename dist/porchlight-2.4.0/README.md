@@ -371,9 +371,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-2.3.3/`
-- `dist/porchlight-2.3.3.tar.gz`
-- `dist/porchlight-2.3.3.tar.gz.sha256`
+- `dist/porchlight-2.4.0/`
+- `dist/porchlight-2.4.0.tar.gz`
+- `dist/porchlight-2.4.0.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 

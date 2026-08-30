@@ -47,8 +47,9 @@ class PorchlightHTTPRequestHandler(SimpleHTTPRequestHandler):
         try:
             payload = self.read_json_body()
             if path == "/api/setup/mqtt":
-                self.write_json({"mqtt": update_mqtt_settings(self.server.config.config_dir, payload)})
+                settings = update_mqtt_settings(self.server.config.config_dir, payload)
                 self.server.request_apply("restart_bridge")
+                self.write_json({"mqtt": settings})
             elif path == "/api/setup/openai":
                 settings = update_openai_settings(self.server.config.config_dir, payload)
                 self.write_json({"openai": self.server.openai_payload(settings)})

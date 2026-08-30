@@ -1,6 +1,6 @@
 # Release
 
-## 2.3.3
+## 2.4.0
 
 - Reduced scheduled AI analysis from every 15 minutes to hourly, with the
   existing randomized delay retained to avoid synchronized requests.
@@ -8,6 +8,8 @@
   fingerprint of host topology, endpoint state and characteristics, topology
   counts, and deduplicated irregularities. Scan timestamps and run-history
   churn no longer trigger paid model calls.
+- Made MQTT setup responses wait until the bridge-restart action is durably
+  queued, eliminating a response/action race in the setup API.
 
 ## 2.3.2
 
