@@ -24,6 +24,7 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("ExecStart=/opt/porchlight/current/bin/porchlight-ai-analysis --apply", ai_service)
         self.assertIn("EnvironmentFile=-/etc/porchlight/porchlight.openai.env", ai_service)
         self.assertIn("Unit=porchlight-ai-analysis.service", ai_timer)
+        self.assertIn("OnUnitActiveSec=1h", ai_timer)
         for name in [
             "porchlight-scan.timer",
             "porchlight-discover.timer",
@@ -147,9 +148,9 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("Porchlight - LAN directory", index)
         self.assertIn("viewport-fit=cover", index)
         self.assertIn("apple-touch-icon", index)
-        self.assertIn("/style.css?v=2.3.2", index)
-        self.assertIn("/app.js?v=2.3.2", index)
-        self.assertIn("Porchlight v2.3.2", index)
+        self.assertIn("/style.css?v=2.3.3", index)
+        self.assertIn("/app.js?v=2.3.3", index)
+        self.assertIn("Porchlight v2.3.3", index)
         self.assertIn("radial-gradient(8.5rem 7.5rem", style)
         self.assertIn("/apple-touch-icon.png", index)
         self.assertIn("/pwa-icon-192.png", index)

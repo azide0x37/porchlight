@@ -13,6 +13,33 @@ from .settings import DEFAULT_OPENAI, openai_settings
 from .util import iso_age_seconds, now_iso, read_json
 
 
+ANALYSIS_FINGERPRINT_VERSION = 2
+MEANINGFUL_STATUS_FIELDS = (
+    "network_cidr",
+    "gateway",
+    "hosts_seen",
+    "active_hosts",
+    "open_ports",
+    "http_services",
+    "rtsp_services",
+    "mqtt_services",
+    "internal_services",
+)
+HOST_FINGERPRINT_FIELDS = ("stable_key", "ip", "mac", "interface", "display_name", "status")
+SERVICE_FINGERPRINT_FIELDS = (
+    "ip",
+    "proto",
+    "port",
+    "state",
+    "service_name",
+    "product",
+    "version",
+    "url",
+    "title",
+    "category",
+)
+
+
 ANALYSIS_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -97,7 +124,7 @@ def run_ai_analysis(config: Config) -> dict[str, object]:
         return write_status(output_path, "missing_snapshot", model, service_tier)
 
     analysis_input = compact_analysis_input(snapshot, changes)
-    snapshot_hash = stable_hash(analysis_input)
+    snapshot_hash = meaningful_analysis_hash(snapshot, changes)
     existing = read_json(output_path)
     scan_age = iso_age_seconds(snapshot.get("status", {}).get("last_scan"))
     if scan_age is None or (config.scan_stale_seconds > 0 and scan_age > config.scan_stale_seconds):
@@ -115,6 +142,7 @@ def run_ai_analysis(config: Config) -> dict[str, object]:
         )
     if (
         existing.get("status") == "ok"
+        and existing.get("fingerprint_version") == ANALYSIS_FINGERPRINT_VERSION
         and existing.get("snapshot_hash") == snapshot_hash
         and existing.get("model") == model
         and existing.get("service_tier") == service_tier
@@ -153,6 +181,7 @@ def run_ai_analysis(config: Config) -> dict[str, object]:
         "source": "openai",
         "generated_at": now_iso(),
         "snapshot_hash": snapshot_hash,
+        "fingerprint_version": ANALYSIS_FINGERPRINT_VERSION,
         "model": model,
         "service_tier": service_tier,
         "cache_hit": False,
@@ -172,6 +201,8 @@ def compact_analysis_input(snapshot: dict, changes: dict) -> dict[str, object]:
         "hosts": [
             {
                 "ip": host.get("ip"),
+                "stable_key": host.get("stable_key"),
+                "mac": host.get("mac"),
                 "display_name": host.get("display_name"),
                 "status": host.get("status"),
                 "names": host.get("names"),
@@ -184,6 +215,7 @@ def compact_analysis_input(snapshot: dict, changes: dict) -> dict[str, object]:
                 "ip": service.get("ip"),
                 "proto": service.get("proto"),
                 "port": service.get("port"),
+                "state": service.get("state"),
                 "service_name": service.get("service_name"),
                 "product": service.get("product"),
                 "version": service.get("version"),
@@ -200,6 +232,65 @@ def compact_analysis_input(snapshot: dict, changes: dict) -> dict[str, object]:
 def stable_hash(payload: dict[str, object]) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def meaningful_analysis_hash(snapshot: dict[str, object], changes: dict[str, object]) -> str:
+    status = snapshot.get("status") if isinstance(snapshot.get("status"), dict) else {}
+    hosts = snapshot.get("hosts") if isinstance(snapshot.get("hosts"), list) else []
+    services = snapshot.get("services") if isinstance(snapshot.get("services"), list) else []
+    irregularities = changes.get("irregularities") if isinstance(changes.get("irregularities"), list) else []
+    payload = {
+        "fingerprint_version": ANALYSIS_FINGERPRINT_VERSION,
+        "status": {field: status.get(field) for field in MEANINGFUL_STATUS_FIELDS},
+        "hosts": canonical_records(hosts, HOST_FINGERPRINT_FIELDS, normalize_host_record),
+        "services": canonical_records(services, SERVICE_FINGERPRINT_FIELDS),
+        "irregularities": canonical_irregularities(irregularities),
+    }
+    return stable_hash(payload)
+
+
+def canonical_records(
+    records: list[object],
+    fields: tuple[str, ...],
+    normalizer=None,
+) -> list[dict[str, object]]:
+    canonical = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        item = {field: record.get(field) for field in fields}
+        canonical.append(normalizer(item, record) if normalizer else item)
+    return sorted(canonical, key=canonical_json)
+
+
+def normalize_host_record(item: dict[str, object], record: dict[str, object]) -> dict[str, object]:
+    names = record.get("names")
+    if isinstance(names, str):
+        normalized_names = sorted({name.strip() for name in names.split(",") if name.strip()})
+    elif isinstance(names, list):
+        normalized_names = sorted({str(name).strip() for name in names if str(name).strip()})
+    else:
+        normalized_names = []
+    return {**item, "names": normalized_names}
+
+
+def canonical_irregularities(irregularities: list[object]) -> list[dict[str, object]]:
+    unique = {}
+    for irregularity in irregularities:
+        if not isinstance(irregularity, dict):
+            continue
+        item = {
+            "kind": irregularity.get("kind"),
+            "severity": irregularity.get("severity"),
+            "subject_key": irregularity.get("subject_key"),
+            "payload": irregularity.get("payload") if isinstance(irregularity.get("payload"), dict) else {},
+        }
+        unique[canonical_json(item)] = item
+    return [unique[key] for key in sorted(unique)]
+
+
+def canonical_json(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
 def request_analysis(api_key: str, model: str, service_tier: str, analysis_input: dict[str, object]) -> dict[str, object]:
@@ -365,6 +456,7 @@ def write_status(
         "generated_at": now_iso(),
         "model": model,
         "service_tier": service_tier,
+        "fingerprint_version": ANALYSIS_FINGERPRINT_VERSION,
     }
     if snapshot_hash:
         payload["snapshot_hash"] = snapshot_hash

@@ -11,7 +11,11 @@ from urllib.error import HTTPError
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from porchlight.ai_analysis import run_ai_analysis, stable_hash, compact_analysis_input
+from porchlight.ai_analysis import (
+    ANALYSIS_FINGERPRINT_VERSION,
+    meaningful_analysis_hash,
+    run_ai_analysis,
+)
 from porchlight.config import load_config
 from porchlight.util import now_iso
 
@@ -90,6 +94,24 @@ class AiAnalysisTest(unittest.TestCase):
             "hosts": [{"ip": "192.168.1.10", "grade": "B", "headline": "Host is ordinary.", "summary": "SSH only.", "notes": []}],
             "irregularities": [],
         }
+
+    def seed_cached_analysis(self, root: Path) -> dict:
+        www = root / "var/lib/porchlight/www"
+        snapshot = json.loads((www / "snapshot.json").read_text(encoding="utf-8"))
+        changes = json.loads((www / "changes.json").read_text(encoding="utf-8"))
+        cached = {
+            "status": "ok",
+            "source": "openai",
+            "generated_at": now_iso(),
+            "snapshot_hash": meaningful_analysis_hash(snapshot, changes),
+            "fingerprint_version": ANALYSIS_FINGERPRINT_VERSION,
+            "model": "gpt-5-mini",
+            "service_tier": "flex",
+            "cache_hit": False,
+            **self.generated_analysis(),
+        }
+        (www / "analysis.json").write_text(json.dumps(cached), encoding="utf-8")
+        return cached
 
     def test_disabled_analysis_writes_local_status_without_api_call(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -208,7 +230,8 @@ class AiAnalysisTest(unittest.TestCase):
                 "status": "ok",
                 "source": "openai",
                 "generated_at": now_iso(),
-                "snapshot_hash": stable_hash(compact_analysis_input(snapshot, changes)),
+                "snapshot_hash": meaningful_analysis_hash(snapshot, changes),
+                "fingerprint_version": ANALYSIS_FINGERPRINT_VERSION,
                 "model": "gpt-5-old",
                 "service_tier": "flex",
                 **self.generated_analysis(),
@@ -224,6 +247,172 @@ class AiAnalysisTest(unittest.TestCase):
             self.assertTrue(urlopen.called)
             self.assertFalse(result["cache_hit"])
             self.assertEqual(result["model"], "gpt-5-mini")
+
+    def test_scan_timestamp_and_run_history_do_not_invalidate_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_snapshot(root)
+            self.write_enabled_openai_config(root)
+            www = root / "var/lib/porchlight/www"
+            changes_path = www / "changes.json"
+            semantic_irregularity = {
+                "run_id": 10,
+                "observed_at": "2026-08-30T10:00:00Z",
+                "kind": "service_changed",
+                "severity": "notice",
+                "subject_key": "192.168.1.10:tcp/22",
+                "payload": {"changed_fields": ["version"], "current": {"version": "9.9"}},
+            }
+            changes_path.write_text(
+                json.dumps(
+                    {
+                        "irregularities": [semantic_irregularity],
+                        "recent_runs": [{"id": 10, "status": "completed"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            cached = self.seed_cached_analysis(root)
+
+            snapshot_path = www / "snapshot.json"
+            snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            snapshot["status"]["last_scan"] = now_iso()
+            snapshot["status"]["scan_age_seconds"] = 1.5
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+            duplicate = {**semantic_irregularity, "run_id": 11, "observed_at": "2026-08-30T10:05:00Z"}
+            changes_path.write_text(
+                json.dumps(
+                    {
+                        "irregularities": [duplicate, semantic_irregularity],
+                        "recent_runs": [{"id": 11, "status": "completed"}, {"id": 10, "status": "completed"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = self.config_for(root)
+
+            with mock.patch("porchlight.ai_analysis.urlopen") as urlopen:
+                result = run_ai_analysis(config)
+
+            self.assertFalse(urlopen.called)
+            self.assertTrue(result["cache_hit"])
+            self.assertEqual(result["snapshot_hash"], cached["snapshot_hash"])
+
+    def test_host_topology_change_invalidates_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_snapshot(root)
+            self.write_enabled_openai_config(root)
+            self.seed_cached_analysis(root)
+            snapshot_path = root / "var/lib/porchlight/www/snapshot.json"
+            snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            snapshot["status"]["last_scan"] = now_iso()
+            snapshot["status"]["hosts_seen"] = 2
+            snapshot["hosts"].append(
+                {"stable_key": "ip:192.168.1.20", "ip": "192.168.1.20", "display_name": "beta", "status": "active"}
+            )
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+            config = self.config_for(root)
+
+            with mock.patch(
+                "porchlight.ai_analysis.urlopen",
+                return_value=FakeResponse({"output": [{"content": [{"text": json.dumps(self.generated_analysis())}]}]}),
+            ) as urlopen:
+                result = run_ai_analysis(config)
+
+            self.assertTrue(urlopen.called)
+            self.assertFalse(result["cache_hit"])
+
+    def test_topology_change_beyond_model_prompt_cap_invalidates_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_snapshot(root)
+            self.write_enabled_openai_config(root)
+            snapshot_path = root / "var/lib/porchlight/www/snapshot.json"
+            snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            snapshot["hosts"] = [
+                {
+                    "stable_key": f"ip:192.168.2.{index}",
+                    "ip": f"192.168.2.{index}",
+                    "display_name": f"host-{index}",
+                    "status": "active",
+                }
+                for index in range(1, 162)
+            ]
+            snapshot["status"]["hosts_seen"] = len(snapshot["hosts"])
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+            self.seed_cached_analysis(root)
+            snapshot["hosts"][-1]["display_name"] = "changed-beyond-prompt-cap"
+            snapshot["status"]["last_scan"] = now_iso()
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+            config = self.config_for(root)
+
+            with mock.patch(
+                "porchlight.ai_analysis.urlopen",
+                return_value=FakeResponse({"output": [{"content": [{"text": json.dumps(self.generated_analysis())}]}]}),
+            ) as urlopen:
+                result = run_ai_analysis(config)
+
+            self.assertTrue(urlopen.called)
+            self.assertFalse(result["cache_hit"])
+
+    def test_endpoint_characteristic_change_invalidates_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_snapshot(root)
+            self.write_enabled_openai_config(root)
+            self.seed_cached_analysis(root)
+            snapshot_path = root / "var/lib/porchlight/www/snapshot.json"
+            snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            snapshot["status"]["last_scan"] = now_iso()
+            snapshot["services"][0].update({"product": "OpenSSH", "version": "9.9p1", "title": "SSH management"})
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+            config = self.config_for(root)
+
+            with mock.patch(
+                "porchlight.ai_analysis.urlopen",
+                return_value=FakeResponse({"output": [{"content": [{"text": json.dumps(self.generated_analysis())}]}]}),
+            ) as urlopen:
+                result = run_ai_analysis(config)
+
+            self.assertTrue(urlopen.called)
+            self.assertFalse(result["cache_hit"])
+
+    def test_new_semantic_irregularity_invalidates_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_snapshot(root)
+            self.write_enabled_openai_config(root)
+            self.seed_cached_analysis(root)
+            changes_path = root / "var/lib/porchlight/www/changes.json"
+            changes_path.write_text(
+                json.dumps(
+                    {
+                        "irregularities": [
+                            {
+                                "run_id": 12,
+                                "observed_at": "2026-08-30T11:00:00Z",
+                                "kind": "service_opened",
+                                "severity": "warning",
+                                "subject_key": "192.168.1.10:tcp/443",
+                                "payload": {"ip": "192.168.1.10", "proto": "tcp", "port": 443},
+                            }
+                        ],
+                        "recent_runs": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = self.config_for(root)
+
+            with mock.patch(
+                "porchlight.ai_analysis.urlopen",
+                return_value=FakeResponse({"output": [{"content": [{"text": json.dumps(self.generated_analysis())}]}]}),
+            ) as urlopen:
+                result = run_ai_analysis(config)
+
+            self.assertTrue(urlopen.called)
+            self.assertFalse(result["cache_hit"])
 
 
 if __name__ == "__main__":

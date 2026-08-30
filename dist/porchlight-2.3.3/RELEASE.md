@@ -1,5 +1,14 @@
 # Release
 
+## 2.3.3
+
+- Reduced scheduled AI analysis from every 15 minutes to hourly, with the
+  existing randomized delay retained to avoid synchronized requests.
+- Replaced the volatile full-snapshot cache key with a versioned semantic
+  fingerprint of host topology, endpoint state and characteristics, topology
+  counts, and deduplicated irregularities. Scan timestamps and run-history
+  churn no longer trigger paid model calls.
+
 ## 2.3.2
 
 - Replaced boot-relative recurring timer starts with activation-relative starts,

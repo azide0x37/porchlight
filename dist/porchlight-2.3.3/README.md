@@ -217,15 +217,20 @@ Optional OpenAI credentials live in `/etc/porchlight/porchlight.openai.env`.
 Use the dashboard Settings view to store or clear `OPENAI_API_KEY`, enable or
 disable AI analysis, choose the model, and choose the API service tier. AI
 analysis is disabled by default. When enabled, `porchlight-ai-analysis.service`
-runs asynchronously from `porchlight-ai-analysis.timer`, reads the rendered
-snapshot JSON, calls the configured OpenAI model, and writes
+runs asynchronously from `porchlight-ai-analysis.timer` once per hour (plus up
+to two minutes of randomized delay), reads the rendered snapshot JSON, calls
+the configured OpenAI model only when its semantic fingerprint changes, and writes
 `/var/lib/porchlight/www/analysis.json`. Scan and render jobs never wait for the
 model call. The Settings view can also queue an immediate run through the exact
 `/api/setup/openai/analyze` setup endpoint.
 
 Setup API responses only report whether a key is set plus non-secret AI
-settings and worker status; they never return the key value. Cache reuse requires
-the snapshot hash, model, and service tier to match. A snapshot older than
+settings and worker status; they never return the key value. The versioned
+fingerprint covers normalized host topology, endpoint state and characteristics,
+topology counts, and deduplicated semantic irregularities. Scan timestamps,
+scan-age counters, and recent-run history do not invalidate it. Cache reuse also
+requires the model and service tier to match, so changing either intentionally
+queues one fresh analysis. A snapshot older than
 `PORCHLIGHT_SCAN_STALE_SECONDS` (20 minutes by default) is reported as
 `stale_snapshot` without calling the model. Other skipped or failed runs log a
 structured status and exit nonzero so systemd cannot report them as successful.
@@ -366,9 +371,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-2.3.2/`
-- `dist/porchlight-2.3.2.tar.gz`
-- `dist/porchlight-2.3.2.tar.gz.sha256`
+- `dist/porchlight-2.3.3/`
+- `dist/porchlight-2.3.3.tar.gz`
+- `dist/porchlight-2.3.3.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
@@ -377,7 +382,7 @@ This writes:
 | Requirement | Status | Evidence |
 | --- | --- | --- |
 | systemd owns lifecycle | PASS | units call `/opt/porchlight/current/bin/...`; install and update restart the web service and recurring timers after `daemon-reload` |
-| systemd timer owns scheduled refresh | PASS | recurring timers use `OnActiveSec` plus `OnUnitActiveSec`, and regression tests reject boot-relative starts that can become elapsed after reload |
+| systemd timer owns scheduled refresh | PASS | recurring timers use `OnActiveSec` plus `OnUnitActiveSec`; regression tests require the AI interval to be one hour and reject boot-relative starts that can become elapsed after reload |
 | config under `/etc/porchlight` | PASS | `etc/porchlight.mqtt.env.example`, `etc/porchlight.openai.env.example`, `bin/install.sh` preserves existing config |
 | runtime under `/opt/porchlight/releases/<version>` | PASS | `bin/install.sh` installs to `/opt/porchlight/releases/$(VERSION)` |
 | `/opt/porchlight/current` active link | PASS | `bin/install.sh` updates the symlink after staging release files |
@@ -385,7 +390,7 @@ This writes:
 | scanner writes state ledger | PASS | `src/porchlight-scan`, `src/porchlight/store.py`, `tests/test_scan.py` |
 | scan irregularities are recorded | PASS | `src/porchlight/store.py`, `src/porchlight/render.py`, `tests/test_store_merge.py` |
 | static dashboard is rendered | PASS | `bin/install.sh` refreshes static web assets; the browser polls current JSON every minute and surfaces refresh failures |
-| AI analysis sidecar is opt-in and asynchronous | PASS | cache keys include snapshot/model/tier; stale snapshots and upstream failures are explicit in JSON, logs, and exit status |
+| AI analysis sidecar is opt-in and asynchronous | PASS | the hourly timer and versioned semantic fingerprint are regression-tested; scan timestamps and run history cannot trigger model calls, while host, endpoint, irregularity, model, and tier changes do; stale snapshots and upstream failures are explicit in JSON, logs, and exit status |
 | local web dashboard and setup API are systemd-owned | PASS | `src/porchlight-web`, `src/porchlight/web.py` no-store headers and `/api/setup/*`, `systemd/porchlight-web.service` |
 | no-SSH appliance setup is optional | PASS | `bin/install.sh --appliance`, `bin/setup-ap.sh`, `bin/setup-apply.sh`, `systemd/porchlight-setup-ap.service`, `systemd/porchlight-setup-apply.path` |
 | appliance health is written | PASS | `src/porchlight-health`, `systemd/porchlight-health.timer`, and `tests/test_health.py` enforce scan freshness |
