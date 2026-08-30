@@ -2,7 +2,7 @@
 Description=Refresh Porchlight AI analysis
 
 [Timer]
-OnActiveSec=3min
+OnActiveSec=1h
 OnUnitActiveSec=1h
 Unit=porchlight-ai-analysis.service
 Persistent=true

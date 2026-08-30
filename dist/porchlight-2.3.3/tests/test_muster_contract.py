@@ -24,6 +24,7 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("ExecStart=/opt/porchlight/current/bin/porchlight-ai-analysis --apply", ai_service)
         self.assertIn("EnvironmentFile=-/etc/porchlight/porchlight.openai.env", ai_service)
         self.assertIn("Unit=porchlight-ai-analysis.service", ai_timer)
+        self.assertIn("OnActiveSec=1h", ai_timer)
         self.assertIn("OnUnitActiveSec=1h", ai_timer)
         for name in [
             "porchlight-scan.timer",
