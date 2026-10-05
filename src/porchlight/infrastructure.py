@@ -200,6 +200,7 @@ class InfrastructureMonitor:
         self._thread = None
         self._data = {"hosts": [], "services": [], "providers": {}, "generated_at": None, "stale_seconds": 120}
         self.interval = 30
+        self._source_keys = {}
 
     def start(self):
         self._thread = threading.Thread(target=self._run, name="infrastructure-observer", daemon=True)
@@ -303,6 +304,25 @@ class InfrastructureMonitor:
             return
         with self._lock:
             previous = deepcopy(self._data)
+            old_keys = deepcopy(self._source_keys)
+        keys = {}
+        for host in registry["hosts"]:
+            for provider in ("beszel", "komodo"):
+                selector = host.get(provider + "_id") or host.get(provider + "_name")
+                keys[(provider, host["id"])] = (credentials.get(provider.upper() + "_URL"), selector)
+        for service in registry["services"]:
+            keys[("deployment", service["id"])] = (credentials.get("KOMODO_URL"),
+                service.get("komodo_stack_id") or service.get("komodo_stack"), service["host"])
+            keys[("probe", service["id"])] = (service["host"], json.dumps(service.get("probe", {}), sort_keys=True))
+
+        def retained(provider, key, old, field):
+            cache_key = (provider, key)
+            upstream = "komodo" if provider == "deployment" else provider
+            # A successful response with no match is an authoritative missing mapping.
+            # Only retain the last observation after an error from the unchanged source.
+            if data["providers"].get(upstream, {}).get("status") == "error" and keys.get(cache_key) == old_keys.get(cache_key):
+                return old.get(field, {})
+            return {}
         data = {"configured": bool(registry["hosts"]), "generated_at": timestamp(), "probe_origin": self.origin,
                 "stale_seconds": registry["stale_seconds"], "hosts": [], "services": [], "providers": {}}
         beszel_hosts, komodo_hosts, deployments = {}, {}, {}
@@ -318,8 +338,8 @@ class InfrastructureMonitor:
         old_hosts = {host["id"]: host for host in previous["hosts"]}
         for host in registry["hosts"]:
             old = old_hosts.get(host["id"], {})
-            metrics = beszel_hosts.get(host["id"]) or old.get("telemetry", {})
-            management = komodo_hosts.get(host["id"]) or old.get("management", {})
+            metrics = beszel_hosts.get(host["id"]) or retained("beszel", host["id"], old, "telemetry")
+            management = komodo_hosts.get(host["id"]) or retained("komodo", host["id"], old, "management")
             data["hosts"].append({
                 "id": host["id"], "name": str(host.get("name", host["id"])), "links": public_links(host),
                 "maintenance": bool(host.get("maintenance")), "telemetry": metrics, "management": management,
@@ -328,13 +348,17 @@ class InfrastructureMonitor:
             data["services"] = list(executor.map(lambda service: service_probe(service, self.origin), registry["services"]))
         old_services = {service["id"]: service for service in previous["services"]}
         for service in data["services"]:
+            old_service = old_services.get(service["id"], {})
+            if keys.get(("probe", service["id"])) != old_keys.get(("probe", service["id"])):
+                old_service = {}
             if not service["observed_at"]:
-                service["last_success_at"] = old_services.get(service["id"], {}).get("last_success_at") or old_services.get(service["id"], {}).get("observed_at")
+                service["last_success_at"] = old_service.get("last_success_at") or old_service.get("observed_at")
             else:
                 service["last_success_at"] = service["observed_at"]
-            service["deployment"] = deployments.get(service["id"]) or old_services.get(service["id"], {}).get("deployment")
+            service["deployment"] = deployments.get(service["id"]) or retained("deployment", service["id"], old_services.get(service["id"], {}), "deployment")
         with self._lock:
             self._data = data
+            self._source_keys = keys
 
     def snapshot(self):
         with self._lock:

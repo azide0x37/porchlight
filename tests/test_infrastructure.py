@@ -187,6 +187,52 @@ class MonitorTest(unittest.TestCase):
         self.assertTrue(expired['services'][0]['deployment_stale'])
         self.assertNotIn('private credential', json.dumps(current))
 
+    def test_successful_missing_mapping_discards_cached_health(self):
+        self.monitor.collect()
+        with patch.object(self.monitor, '_beszel', return_value=({}, {"status": "ok"})), \
+             patch.object(self.monitor, '_komodo', return_value=({}, {}, {"status": "ok"})):
+            self.monitor.collect()
+        snapshot = self.monitor.snapshot()
+        self.assertEqual(snapshot['hosts'][0]['status'], 'unknown')
+        self.assertEqual(snapshot['hosts'][0]['telemetry'], {})
+        self.assertEqual(snapshot['hosts'][0]['management'], {})
+        self.assertFalse(snapshot['services'][0]['deployment'])
+
+    def test_registry_remap_does_not_inherit_previous_host_or_stack(self):
+        self.monitor.collect()
+        self.registry['hosts'][0].update(beszel_id='another-system', komodo_id='another-server')
+        self.registry['services'][0]['komodo_stack_id'] = 'another-stack'
+        (self.config / 'infrastructure.json').write_text(json.dumps(self.registry))
+        self.provider_failed = True
+        self.monitor.collect()
+        snapshot = self.monitor.snapshot()
+        self.assertEqual(snapshot['hosts'][0]['status'], 'unknown')
+        self.assertEqual(snapshot['hosts'][0]['telemetry'], {})
+        self.assertEqual(snapshot['hosts'][0]['management'], {})
+        self.assertFalse(snapshot['services'][0]['deployment'])
+
+    def test_provider_endpoint_change_invalidates_old_samples(self):
+        self.monitor.collect()
+        path = self.config / 'infrastructure.env'
+        path.write_text(path.read_text().replace('127.0.0.1', '127.0.0.2'))
+        self.provider_failed = True
+        self.monitor.collect()
+        snapshot = self.monitor.snapshot()
+        self.assertEqual(snapshot['hosts'][0]['status'], 'unknown')
+        self.assertFalse(snapshot['services'][0]['deployment'])
+
+    def test_changed_probe_does_not_inherit_last_response(self):
+        self.registry['services'][0]['probe'] = {'url': 'http://127.0.0.1:9001'}
+        (self.config / 'infrastructure.json').write_text(json.dumps(self.registry))
+        with patch.object(infra, 'request', return_value=(200, b'login')):
+            self.monitor.collect()
+        self.assertIsNotNone(self.monitor.snapshot()['services'][0]['last_success_at'])
+        self.registry['services'][0]['probe']['url'] = 'http://127.0.0.1:9002'
+        (self.config / 'infrastructure.json').write_text(json.dumps(self.registry))
+        with patch.object(infra, 'request', side_effect=OSError('unreachable')):
+            self.monitor.collect()
+        self.assertIsNone(self.monitor.snapshot()['services'][0]['last_success_at'])
+
     def test_disabled_server_is_maintenance(self):
         self.server_state = 'Disabled'
         self.monitor.collect()
