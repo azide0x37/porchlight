@@ -5,6 +5,7 @@ const state = {
   changes: { recent_runs: [] },
   analysis: { status: "missing" },
   snapshot: {},
+  infrastructure: {},
   query: "",
   statusFilter: "all",
   groupBy: "subnet",
@@ -169,6 +170,10 @@ async function json(path) {
 }
 
 async function load({ includeSetup = true } = {}) {
+  // Infrastructure observations must remain available when scanner data is missing.
+  state.infrastructure = await json("/api/infrastructure").catch(() => ({
+    ...state.infrastructure, collector_stale: true, collector_error: "Health observations unavailable",
+  }));
   const setupRequest = includeSetup
     ? json("/api/setup/status")
     : Promise.resolve(state.setupStatus);
@@ -960,6 +965,78 @@ function notFound(message) {
   return `<section class="route-empty"><h1>${escapeHtml(message)}</h1><p><a href="${href("/")}">Return to overview</a></p></section>`;
 }
 
+function infrastructureFresh(value, ttl) {
+  const age = (Date.now() - Date.parse(value || "")) / 1000;
+  return Number.isFinite(age) && age >= -5 && age <= ttl;
+}
+
+function infrastructureLink(link) {
+  try {
+    const url = new URL(link.url);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return "";
+    return '<a href="' + escapeHtml(url.href) + '" target="_blank" rel="noreferrer noopener">' + escapeHtml(link.label || "Open") + '</a>';
+  } catch (_error) { return ""; }
+}
+
+function infrastructureBadge(status) {
+  const tone = ["healthy", "up", "reachable"].includes(status) ? "good"
+    : ["down", "degraded", "unreachable"].includes(status) ? "bad" : "neutral";
+  return '<span class="infra-badge ' + tone + '">' + escapeHtml(status || "unknown") + '</span>';
+}
+
+function renderInfrastructure() {
+  const data = state.infrastructure || {};
+  const hosts = data.hosts || [];
+  const services = data.services || [];
+  const ttl = data.stale_seconds || 120;
+  const stale = data.collector_stale || !infrastructureFresh(data.generated_at, ttl);
+  const metric = (value, fresh) => fresh && Number.isFinite(value) ? value.toFixed(1) + "%" : "—";
+  const observed = (date) => date ? escapeHtml(new Date(date).toLocaleString()) : "No observation";
+  const providers = Object.entries(data.providers || {}).map(([name, provider]) =>
+    '<span>' + escapeHtml(name === "beszel" ? "Host monitoring" : "Deployment monitoring") + ': ' +
+    infrastructureBadge(provider.status === "ok" && infrastructureFresh(provider.observed_at, ttl) ? "connected" : provider.status || "unknown") + '</span>'
+  ).join(" ");
+  let content = '<section class="route-heading"><h1>Infrastructure</h1><p>Local services and the hosts they depend on.</p></section>';
+  content += '<p class="muted">' + hosts.length + ' hosts · ' + services.length + ' services · Observer: ' + escapeHtml(data.probe_origin || "unknown") + '</p>';
+  content += '<div class="infra-providers">' + providers + '</div>';
+  if (stale || data.collector_error) content += '<section class="infra-notice" role="status"><p>Health observations are unavailable or stale. Last collection: ' + observed(data.generated_at) + '.</p></section>';
+  if (!hosts.length) return content + empty("The infrastructure inventory is not configured yet.");
+  content += '<div class="infra-hosts">';
+  for (const host of hosts) {
+    const telemetry = host.telemetry || {};
+    const management = host.management || {};
+    const freshTelemetry = !stale && !host.telemetry_stale && infrastructureFresh(telemetry.observed_at, ttl);
+    const freshManagement = !stale && !host.management_stale && infrastructureFresh(management.observed_at, ttl);
+    const freshTelemetryStatus = !stale && infrastructureFresh(telemetry.status_observed_at, ttl);
+    const status = host.maintenance ? "maintenance" : freshManagement ? management.status || "unknown"
+      : freshTelemetryStatus ? telemetry.status || "unknown" : "unknown";
+    const metrics = telemetry.metrics || {};
+    content += '<section class="infra-host" id="infra-' + escapeHtml(host.id) + '"><div class="infra-title"><h2>' + escapeHtml(host.name) + '</h2>' + infrastructureBadge(status) + '</div>';
+    content += '<dl class="infra-metrics"><div><dt>CPU</dt><dd>' + metric(metrics.cpu_pct, freshTelemetry) + '</dd></div><div><dt>Memory</dt><dd>' + metric(metrics.memory_pct, freshTelemetry) + '</dd></div><div><dt>Disk</dt><dd>' + metric(metrics.disk_pct, freshTelemetry) + '</dd></div><div><dt>Active alerts</dt><dd>' + (freshManagement && Number.isInteger(management.active_alerts) ? management.active_alerts : "—") + '</dd></div></dl>';
+    content += '<p class="small">Host telemetry: ' + (freshTelemetry ? "fresh" : "stale / unknown") + ' · ' + observed(telemetry.observed_at) + '</p>';
+    content += '<p class="small">Management: ' + (freshManagement ? escapeHtml(management.status || "unknown") : "stale / unknown") + ' · ' + observed(management.observed_at) + '</p>';
+    content += '<div class="infra-links">' + (host.links || []).map(infrastructureLink).join(" ") + '</div>';
+    const hosted = services.filter((service) => service.host === host.id);
+    content += '<div class="infra-services">';
+    for (const service of hosted) {
+      const freshProbe = !stale && !service.stale && infrastructureFresh(service.checked_at, ttl);
+      const health = service.maintenance ? "maintenance" : freshProbe ? service.health : "unknown";
+      const reachability = freshProbe ? service.reachability : "unknown";
+      const deployment = service.deployment || {};
+      const freshDeployment = !stale && !service.deployment_stale && infrastructureFresh(deployment.observed_at, ttl);
+      content += '<article class="infra-service"><div class="infra-title"><h3>' + escapeHtml(service.name) + '</h3>' + infrastructureBadge(health) + '</div><p>' + escapeHtml(service.purpose || "") + '</p>';
+      content += '<p class="small">HTTP: ' + infrastructureBadge(reachability) + (service.http_status && freshProbe ? ' · ' + escapeHtml(service.http_status) : "") + '</p>';
+      content += '<p class="small">' + escapeHtml(freshProbe ? service.message : "Observation is stale or unavailable") + '</p>';
+      content += '<p class="small">Checked: ' + observed(service.checked_at) + ' · Last response: ' + observed(service.last_success_at || service.observed_at) + '</p>';
+      content += '<p class="small">Deployment: ' + (freshDeployment ? escapeHtml(deployment.state || "unknown") : "unknown") + ' · ' + observed(deployment.observed_at) + '</p>';
+      content += '<div class="infra-links">' + (service.links || []).map(infrastructureLink).join(" ") + '</div></article>';
+    }
+    content += (hosted.length ? "" : '<p class="muted">No web services are registered for this host.</p>') + '</div></section>';
+  }
+  return content + '</div>';
+}
+
+
 function render({ focus = true } = {}) {
   activeNav();
   const path = route();
@@ -967,6 +1044,7 @@ function render({ focus = true } = {}) {
   const app = document.querySelector("#app");
   let content;
   if (path === "/") content = renderOverview();
+  else if (path === "/infrastructure") content = renderInfrastructure();
   else if (path === "/hosts") content = renderHosts();
   else if (path.startsWith("/hosts/")) content = renderHostDetail(decodeURIComponent(path.slice("/hosts/".length)));
   else if (path === "/protocols") content = renderProtocols();
@@ -976,7 +1054,7 @@ function render({ focus = true } = {}) {
   else if (path === "/settings") content = renderSettings();
   else content = notFound("Page not found.");
   const refreshNotice = state.refreshError
-    ? `<section class="error"><p>${escapeHtml(state.refreshError)}</p></section>`
+    ? `<section class="infra-notice" role="status"><p>${escapeHtml(state.refreshError)}</p></section>`
     : "";
   app.innerHTML = refreshNotice + content;
   bindControls();
@@ -1160,11 +1238,16 @@ load({ includeSetup: route() === "/settings" })
     bindChrome();
     render();
     window.setInterval(refresh, 60000);
+    window.setInterval(() => { if (route() === "/infrastructure") refresh(); }, 30000);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) refresh();
     });
   })
   .catch((error) => {
-    document.querySelector("#app").innerHTML = `<section class="error"><h1>Dashboard could not load.</h1><p>${escapeHtml(error.message)}</p></section>`;
+    state.refreshError = `Scanner dashboard could not load: ${error.message}`;
+    bindChrome();
+    if (route() === "/infrastructure") render();
+    else document.querySelector("#app").innerHTML = `<section class="error"><h1>Dashboard could not load.</h1><p>${escapeHtml(error.message)}</p></section>`;
+    window.setInterval(refresh, 30000);
   });

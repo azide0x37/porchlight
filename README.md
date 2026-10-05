@@ -120,6 +120,16 @@ outside private IPv4 space. It does not sweep the whole CIDR for ports; it scans
 the bounded set of hosts already observed through ARP, neighbor, gateway, or
 Tailscale evidence.
 
+## Infrastructure page
+
+The Infrastructure navigation entry (`#/infrastructure`) groups registered web services by host. It shows CPU, memory, disk, active alerts, HTTP reachability, application readiness, deployment state, and observation timestamps separately. Missing or expired observations show unknown/stale; a login page or HTTP 200 alone does not certify application readiness.
+
+Configure the administrator-owned registry at `/etc/porchlight/infrastructure.json` using `etc/infrastructure.json.example`. Include every service, including stopped ones; assign stable host/service IDs, LAN/Tailscale launch links, optional private probe URLs, and exact Beszel/Komodo names or IDs. Readiness probes require an expected response marker. Maintenance is an explicit overlay.
+
+Store integration URLs and existing scoped credentials in `/etc/porchlight/infrastructure.env` with mode 0600 (see its example). The web service polls Beszel's PocketBase `systems` and latest `system_stats` records and Komodo's read API for servers, stacks, and unresolved alerts. The browser reads only sanitized summaries from `GET /api/infrastructure`; no credential or arbitrary-probe API is exposed. Provider errors, ambiguous mappings, schema errors, and expired credentials yield unknown/stale observations without hiding the service inventory. TLS validation stays enabled, redirects are not followed, environment proxies are disabled, and probes require private/Tailscale resolved addresses. The observer runs under the existing systemd-owned web process at 30-second intervals by default (120-second freshness limit). Keep this page behind the existing trusted-network/authentication boundary.
+
+Local fixture validation does not satisfy live acceptance. Retain the tested commit, validation receipt, and deployment/rollback procedure before deploying. An independent monitor must observe Porchlight itself so an outage of its host is visible elsewhere.
+
 ## Dashboard
 
 `porchlight-web.service` serves the dashboard from
@@ -401,5 +411,6 @@ This writes:
 | Python justified and run through `uv` | PASS | bridge uses Python for JSON/discovery payload generation; `make test` runs `uv run python -m unittest discover -s tests` |
 | MPL atoms documented | PASS | `muster.yaml`, `MUSTER.md`, and this README name the relevant MPL patterns including draft `T2R7.ai-analysis-sidecar` |
 | README self-certifies compliance | PASS | this table |
+| infrastructure health is scoped and freshness-aware | PASS (local); live pending | 15 readiness, freshness, redaction, registry and frontend tests; full test/install/doctor and package checks; fixture browser preview. Live fleet integration and Thalia deployment remain pending. |
 | tests current | PASS | `make test` |
 | package and release assets current | PASS | `make package` writes `dist/install.sh`, `dist/manifest.json`, tarball, and SHA256 |
