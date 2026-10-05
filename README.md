@@ -381,9 +381,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-2.4.0/`
-- `dist/porchlight-2.4.0.tar.gz`
-- `dist/porchlight-2.4.0.tar.gz.sha256`
+- `dist/porchlight-2.5.0/`
+- `dist/porchlight-2.5.0.tar.gz`
+- `dist/porchlight-2.5.0.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
@@ -411,6 +411,6 @@ This writes:
 | Python justified and run through `uv` | PASS | bridge uses Python for JSON/discovery payload generation; `make test` runs `uv run python -m unittest discover -s tests` |
 | MPL atoms documented | PASS | `muster.yaml`, `MUSTER.md`, and this README name the relevant MPL patterns including draft `T2R7.ai-analysis-sidecar` |
 | README self-certifies compliance | PASS | this table |
-| infrastructure health is scoped and freshness-aware | PASS (local); live pending | 20 readiness, HTTP semantics, freshness, cache-identity, redaction, registry and frontend tests; full test/install/doctor and package checks; fixture browser preview. Live fleet integration and Thalia deployment remain pending. |
+| infrastructure health is scoped and freshness-aware | PASS (local); live pending | 20 readiness, HTTP semantics, freshness, cache-identity, redaction, registry and frontend tests; full test/install/doctor and package checks; fixture browser preview. Live fleet integration and target-host deployment acceptance remain pending. |
 | tests current | PASS | `make test` |
 | package build and release publication | PASS (build); publication pending | Package target verified with isolated `DIST`; existing v2.4.0 release assets retained. Publish a new version after review and live acceptance. |
