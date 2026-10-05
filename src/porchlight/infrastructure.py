@@ -370,4 +370,3 @@ class InfrastructureMonitor:
                 service["health"] = "unknown"
                 service["reachability"] = "unknown"
         return data
-
