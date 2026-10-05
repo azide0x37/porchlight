@@ -413,4 +413,4 @@ This writes:
 | README self-certifies compliance | PASS | this table |
 | infrastructure health is scoped and freshness-aware | PASS (local); live pending | 20 readiness, HTTP semantics, freshness, cache-identity, redaction, registry and frontend tests; full test/install/doctor and package checks; fixture browser preview. Live fleet integration and Thalia deployment remain pending. |
 | tests current | PASS | `make test` |
-| package and release assets current | PASS | `make package` writes `dist/install.sh`, `dist/manifest.json`, tarball, and SHA256 |
+| package build and release publication | PASS (build); publication pending | Package target verified with isolated `DIST`; existing v2.4.0 release assets retained. Publish a new version after review and live acceptance. |
