@@ -183,8 +183,11 @@ def service_probe(service: dict, origin: str) -> dict:
                 marker = str(probe["expected_text"]).encode()
                 result["health"] = "healthy" if marker in body else "degraded"
                 result["message"] = "Readiness check passed" if marker in body else "Readiness response did not match"
+        elif 400 <= code < 500:
+            # Host/protocol/route rejection does not establish application failure.
+            result.update(reachability="reachable", message="HTTP reachable; selected route rejected the request, readiness unverified")
         else:
-            result.update(reachability="reachable", health="degraded", message="HTTP error response")
+            result.update(reachability="reachable", health="degraded", message="HTTP server error response")
     except (OSError, ValueError):
         result.update(reachability="unreachable", message="Probe failed from this observer")
     return result

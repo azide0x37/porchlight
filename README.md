@@ -411,6 +411,6 @@ This writes:
 | Python justified and run through `uv` | PASS | bridge uses Python for JSON/discovery payload generation; `make test` runs `uv run python -m unittest discover -s tests` |
 | MPL atoms documented | PASS | `muster.yaml`, `MUSTER.md`, and this README name the relevant MPL patterns including draft `T2R7.ai-analysis-sidecar` |
 | README self-certifies compliance | PASS | this table |
-| infrastructure health is scoped and freshness-aware | PASS (local); live pending | 19 readiness, freshness, cache-identity, redaction, registry and frontend tests; full test/install/doctor and package checks; fixture browser preview. Live fleet integration and Thalia deployment remain pending. |
+| infrastructure health is scoped and freshness-aware | PASS (local); live pending | 20 readiness, HTTP semantics, freshness, cache-identity, redaction, registry and frontend tests; full test/install/doctor and package checks; fixture browser preview. Live fleet integration and Thalia deployment remain pending. |
 | tests current | PASS | `make test` |
 | package and release assets current | PASS | `make package` writes `dist/install.sh`, `dist/manifest.json`, tarball, and SHA256 |

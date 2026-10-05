@@ -29,6 +29,8 @@ class ProbeHandler(BaseHTTPRequestHandler):
             '/ready': (200, b'READY'),
             '/auth': (401, b'Unauthorized'),
             '/broken': (503, b'Unavailable'),
+            '/host-rejected': (400, b'Bad host'),
+            '/websocket': (426, b'Upgrade required'),
             '/redirect': (302, b''),
         }.get(self.path, (404, b''))
         self.send_response(code)
@@ -70,6 +72,13 @@ class ProbeTest(unittest.TestCase):
         self.assertEqual(self.probe('/login', kind='readiness', expected_text='READY')['health'], 'degraded')
         self.assertEqual(self.probe('/auth', kind='readiness', expected_text='READY')['health'], 'unknown')
         self.assertEqual(self.probe('/broken')['health'], 'degraded')
+
+    def test_protocol_and_host_rejections_do_not_fabricate_application_failure(self):
+        for path in ('/host-rejected', '/websocket'):
+            with self.subTest(path=path):
+                result = self.probe(path)
+                self.assertEqual(result['reachability'], 'reachable')
+                self.assertEqual(result['health'], 'unknown')
 
     def test_redirect_is_not_followed(self):
         ProbeHandler.paths.clear()
