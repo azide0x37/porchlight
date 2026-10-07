@@ -245,7 +245,7 @@ class InfrastructureMonitor:
             if not system:
                 continue
             stats = self.fetch_json(url.rstrip("/") + "/api/collections/system_stats/records", headers=headers,
-                                    query={"perPage": 1, "sort": "-created", "filter": 'system="' + system["id"] + '"',
+                                    query={"perPage": 1, "sort": "-created", "filter": 'system=' + json.dumps(system["id"]) + ' && type="1m"',
                                            "fields": "created,stats,type"})
             record = stats["items"][0] if stats["items"] else {}
             values = record.get("stats") or {}
@@ -265,7 +265,8 @@ class InfrastructureMonitor:
         safe_url(url)
         headers = {"x-api-key": key, "x-api-secret": secret, "Content-Type": "application/json"}
         def read(kind, params=None):
-            return self.fetch_json(url.rstrip("/") + "/read", headers=headers, payload={"type": kind, "params": params or {}})
+            # Match the official client's operation path and parameter-only body.
+            return self.fetch_json(url.rstrip("/") + "/read/" + kind, headers=headers, payload=params or {})
         servers, stacks = read("ListServers"), read("ListStacks")
         alerts = []
         page = 0
@@ -286,7 +287,9 @@ class InfrastructureMonitor:
                 hosts[host["id"]] = {
                     "status": {"Ok": "up", "NotOk": "down", "Disabled": "maintenance"}.get(state, "unknown"),
                     "observed_at": timestamp(), "source": "Komodo",
-                    "active_alerts": sum(1 for alert in alerts if (alert.get("target") or {}).get("id") == server.get("id")),
+                    "active_alerts": sum(1 for alert in alerts if alert.get("resolved") is False
+                        and (alert.get("target") or {}).get("type") == "Server"
+                        and (alert.get("target") or {}).get("id") == server.get("id")),
                 }
         services = {}
         for service in registry["services"]:

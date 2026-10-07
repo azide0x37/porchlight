@@ -157,13 +157,13 @@ class MonitorTest(unittest.TestCase):
             return {'items': [{'id': 'sys1', 'name': 'Test host', 'status': 'up', 'updated': self.now}], 'totalPages': 1}
         if url.endswith('/system_stats/records'):
             return {'items': [{'created': self.now, 'type': '1m', 'stats': {'cpu': 0, 'mp': 36.5, 'dp': None}}]}
-        kind = options['payload']['type']
+        kind = url.rsplit('/', 1)[-1]
         if kind == 'ListServers':
             return [{'id': 'server1', 'name': 'Test host', 'info': {'state': self.server_state}}]
         if kind == 'ListStacks':
             return [{'id': 'stack1', 'info': {'state': 'Running'}}]
         if kind == 'ListAlerts':
-            return {'alerts': [{'target': {'id': 'server1'}}], 'next_page': None}
+            return {'alerts': [{'resolved': False, 'target': {'type': 'Server', 'id': 'server1'}}], 'next_page': None}
         self.fail('unexpected API request')
 
     def test_summary_uses_sample_time_and_hides_credentials(self):
@@ -178,7 +178,7 @@ class MonitorTest(unittest.TestCase):
         self.assertEqual(result['services'][0]['health'], 'unknown')
         self.assertNotIn('fixture-secret', json.dumps(result))
         self.assertNotIn('fixture-key', json.dumps(result))
-        request = next(options for url, options in self.calls if url.endswith('/read'))
+        request = next(options for url, options in self.calls if url.endswith('/read/ListServers'))
         self.assertEqual(request['headers']['x-api-secret'], 'komodo-fixture-secret')
 
     def test_provider_failure_preserves_timestamps_then_expires(self):
