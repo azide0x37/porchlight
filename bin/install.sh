@@ -240,6 +240,8 @@ install_file "$SRC_ROOT/etc/porchlight.env.example" "$RELEASE_DIR/etc/porchlight
 install_file "$SRC_ROOT/etc/porchlight.mqtt.env.example" "$RELEASE_DIR/etc/porchlight.mqtt.env.example" 0644
 install_file "$SRC_ROOT/etc/porchlight.openai.env.example" "$RELEASE_DIR/etc/porchlight.openai.env.example" 0644
 install_file "$SRC_ROOT/etc/porchlight.setup.env.example" "$RELEASE_DIR/etc/porchlight.setup.env.example" 0644
+install_file "$SRC_ROOT/etc/infrastructure.json.example" "$RELEASE_DIR/etc/infrastructure.json.example" 0644
+install_file "$SRC_ROOT/etc/infrastructure.env.example" "$RELEASE_DIR/etc/infrastructure.env.example" 0644
 install_file "$SRC_ROOT/README.md" "$RELEASE_DIR/README.md" 0644
 install_file "$SRC_ROOT/README.md" "$RELEASE_DIR/doc/README.md" 0644
 install_file "$SRC_ROOT/AGENTS.md" "$RELEASE_DIR/AGENTS.md" 0644

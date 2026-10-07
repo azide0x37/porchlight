@@ -120,6 +120,93 @@ outside private IPv4 space. It does not sweep the whole CIDR for ports; it scans
 the bounded set of hosts already observed through ARP, neighbor, gateway, or
 Tailscale evidence.
 
+## Infrastructure page
+
+The Infrastructure navigation entry (`#/infrastructure`) groups registered web services by host. It shows CPU, memory, disk, active alerts, HTTP reachability, application readiness, deployment state, and observation timestamps separately. Missing or expired observations show unknown/stale; a changed provider mapping clears old health, and only failures from the same source retain timestamped observations; a login page or HTTP 200 alone does not certify application readiness.
+
+Configure the administrator-owned registry at `/etc/porchlight/infrastructure.json` using `etc/infrastructure.json.example`. Include every service, including stopped ones; assign stable host/service IDs, LAN/Tailscale launch links, optional private probe URLs, and exact Beszel/Komodo names or IDs. Readiness probes require an expected response marker. Maintenance is an explicit overlay.
+
+Store integration URLs and existing scoped credentials in `/etc/porchlight/infrastructure.env` with mode 0600 (see its example). The web service polls Beszel's PocketBase `systems` and latest `system_stats` records and Komodo's read API for servers, stacks, and unresolved alerts. The browser reads only sanitized summaries from `GET /api/infrastructure`; no credential or arbitrary-probe API is exposed. Provider errors, ambiguous mappings, schema errors, and expired credentials yield unknown/stale observations without hiding the service inventory. TLS validation stays enabled, redirects are not followed, environment proxies are disabled, and probes require private/Tailscale resolved addresses. The observer runs under the existing systemd-owned web process at 30-second intervals by default (120-second freshness limit). Keep this page behind the existing trusted-network/authentication boundary.
+
+Local fixture validation does not satisfy live acceptance. Retain the tested commit, validation receipt, and deployment/rollback procedure before deploying. An independent monitor must observe Porchlight itself so an outage of its host is visible elsewhere.
+
+### Provider contract verification and remaining acceptance
+
+The October 7, 2026 follow-up uses Komodo's documented
+`POST /read/ListServers`, `/read/ListStacks`, and `/read/ListAlerts` paths,
+with operation parameters as the JSON body and `x-api-key` / `x-api-secret`
+headers. Alert queries use the JSON boolean `false`; host counts include only
+unresolved `Server` targets with the matching server ID. Beszel uses the raw
+PocketBase user token in `Authorization`, paginated `systems` reads, and the
+latest `system_stats` record filtered to `type="1m"`. Sample timestamps and
+`cpu`, `mp`, and `dp` metrics are preserved; a fresh historical rollup must not
+stand in for current telemetry. No provider login, credential refresh, provider
+write, or API fallback is attempted.
+
+Contract sources inspected (these are upstream revisions, **not installed
+versions**):
+
+- [Komodo TypeScript client](https://github.com/moghtech/komodo/blob/780ac68b992094a9fccd5fffb760e0c84fd3c3d1/client/core/ts/src/lib.ts)
+  and [server router](https://github.com/moghtech/komodo/blob/780ac68b992094a9fccd5fffb760e0c84fd3c3d1/bin/core/src/api/read/mod.rs).
+  The router accepts both the enveloped `/read/` form and operation paths.
+  The prior request is therefore not a demonstrated installed-version failure.
+- [Komodo alert parameters](https://github.com/moghtech/komodo/blob/780ac68b992094a9fccd5fffb760e0c84fd3c3d1/client/core/rs/src/api/read/alert.rs)
+  and [target serialization](https://github.com/moghtech/komodo/blob/780ac68b992094a9fccd5fffb760e0c84fd3c3d1/client/core/rs/src/entities/mod.rs).
+- [Beszel authorization tests](https://github.com/henrygd/beszel/blob/bc2278e7e9820825ce990fb2fe7fca4b9fe9a1c3/internal/hub/api_test.go),
+  [metric fields](https://github.com/henrygd/beszel/blob/bc2278e7e9820825ce990fb2fe7fca4b9fe9a1c3/internal/entities/system/system.go),
+  and [record schema](https://github.com/henrygd/beszel/blob/bc2278e7e9820825ce990fb2fe7fca4b9fe9a1c3/internal/migrations/0_collections_snapshot_0_20_0.go).
+
+`tests/test_infrastructure_contract.py` runs the production urllib transport
+against a strict local HTTP server. It verifies methods, paths, decoded query
+parameters, bodies, credential headers, pagination, typed unresolved alert
+counts, telemetry timestamps, 401/schema errors, cache expiry, redaction and
+redirect refusal. These tests supplement fixture mapping/frontend checks;
+they do not certify a real provider deployment.
+
+October 7 validation: `uv run python -m unittest discover -s tests -p
+'test_infrastructure*.py'` passes 26 tests. `make test` runs 69 tests with one
+failure in `test_staged_install_doctor_and_uninstall_preserve_config`:
+`AssertionError: 1 != 0 : FAIL mqtt publish adapter available`.
+The final result is `FAILED (failures=1)` and
+`make: *** [Makefile:11: test] Error 1`. `mosquitto_pub` is absent; installation
+was unavailable in this execution environment. The remaining tests pass.
+Standalone shell syntax validation passes; `make package` with an isolated
+`DIST` passes and leaves tracked 2.4.0 release assets unchanged. Rerun the full
+`make test` target on a host with its declared MQTT adapter before acceptance.
+
+This follow-up session had no deployment endpoint, usable SSH credentials or
+agent, Tailscale client, runtime command connector, or local
+`/etc/porchlight` configuration. Previous native deployment evidence remains
+as reported in PR #4; it was not repeated here. Before marking the PR ready
+or publishing 2.5.0, record the following from authorized runtime access:
+
+1. The target host, running Porchlight commit, Komodo Core version/image digest,
+   and Beszel Hub/agent versions. Use the installed Komodo's authenticated
+   read-only `GetVersion` operation and match its tagged source/router contract.
+2. Using existing scoped credentials server-side, verify the three Komodo read
+   operations and Beszel collection reads. Record only status codes, schema
+   compatibility and sanitized counts. Do not copy tokens, secrets, raw alerts,
+   or provider response dumps into logs, browser output or PR comments. Invalid
+   or expired credentials must remain error/unknown, not be treated as empty
+   successful inventories.
+3. Verify every registered Beszel system and Komodo server/stack ID or unique
+   name against the visible provider inventory. Verify stack `info.server_id`
+   agrees with its configured host's Komodo server, or document swarm placement
+   explicitly. Resolve missing/ambiguous mappings and verify fleet coverage,
+   including stopped services. Compare unresolved Server alert counts with the
+   provider UI and verify the latest 1m sample time/metrics.
+4. In an isolated observer using a temporary copy of the registry, with existing
+   credentials loaded only server-side, perform successful collection and then
+   simulate provider failures in that observer. Verify timestamps are retained
+   for unchanged mappings and become stale/unknown after the configured TTL;
+   verify changed/missing mappings clear old observations. Do not stop providers,
+   alter production credentials, or change existing services to induce failure.
+5. Retain sanitized desktop/mobile live acceptance receipts for mappings, alerts,
+   readiness versus HTTP reachability, maintenance and expiry. Verify an
+   independent monitor observes Porchlight itself. Any deployment of this fix
+   requires its own validated artifact and recorded prior release/rollback
+   procedure; preserve `/etc/porchlight` and existing services throughout.
+
 ## Dashboard
 
 `porchlight-web.service` serves the dashboard from
@@ -371,9 +458,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-2.4.0/`
-- `dist/porchlight-2.4.0.tar.gz`
-- `dist/porchlight-2.4.0.tar.gz.sha256`
+- `dist/porchlight-2.5.0/`
+- `dist/porchlight-2.5.0.tar.gz`
+- `dist/porchlight-2.5.0.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
@@ -401,5 +488,6 @@ This writes:
 | Python justified and run through `uv` | PASS | bridge uses Python for JSON/discovery payload generation; `make test` runs `uv run python -m unittest discover -s tests` |
 | MPL atoms documented | PASS | `muster.yaml`, `MUSTER.md`, and this README name the relevant MPL patterns including draft `T2R7.ai-analysis-sidecar` |
 | README self-certifies compliance | PASS | this table |
-| tests current | PASS | `make test` |
-| package and release assets current | PASS | `make package` writes `dist/install.sh`, `dist/manifest.json`, tarball, and SHA256 |
+| infrastructure health is scoped and freshness-aware | PASS (local); live pending | 26 infrastructure tests pass, including production HTTP transport contracts; isolated package passes. October 7 full suite: 68/69 pass; lifecycle doctor fails because this environment lacks mosquitto_pub. Installed provider versions and authenticated live fleet acceptance remain pending. |
+| tests current | BLOCKED (environment, October 7) | `make test`: 68/69 pass; lifecycle doctor reports `FAIL mqtt publish adapter available` because `mosquitto_pub` is absent; infrastructure subset 26/26 pass |
+| package build and release publication | PASS (build); publication pending | Package target verified with isolated `DIST`; existing v2.4.0 release assets retained. Publish a new version after review and live acceptance. |

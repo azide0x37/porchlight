@@ -10,6 +10,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from .config import load_config
+from .infrastructure import InfrastructureMonitor
 from .settings import (
     masked_openai_settings,
     masked_mqtt_settings,
@@ -37,6 +38,9 @@ class PorchlightHTTPRequestHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self) -> None:
+        if self.path.split("?", 1)[0] == "/api/infrastructure":
+            self.write_json(self.server.infrastructure.snapshot())
+            return
         if self.path.split("?", 1)[0] == "/api/setup/status":
             self.write_json(self.server.setup_payload())
             return
@@ -96,10 +100,14 @@ class PorchlightHTTPRequestHandler(SimpleHTTPRequestHandler):
 
 
 class PorchlightHTTPServer(ThreadingHTTPServer):
+    # A dashboard refresh opens several simultaneous API/static requests.
+    request_queue_size = 32
+
     def __init__(self, server_address, handler, config, apply: bool):
         super().__init__(server_address, handler)
         self.config = config
         self.apply = apply
+        self.infrastructure = InfrastructureMonitor(config.config_dir)
 
     def setup_payload(self) -> dict[str, object]:
         return {
@@ -229,5 +237,10 @@ def main() -> int:
     port = int(os.environ.get("PORCHLIGHT_WEB_PORT", "8765"))
     handler = partial(PorchlightHTTPRequestHandler, directory=str(config.www_dir))
     server = PorchlightHTTPServer((host, port), handler, config, args.apply)
-    server.serve_forever()
+    server.infrastructure.start()
+    try:
+        server.serve_forever()
+    finally:
+        server.infrastructure.stop()
+        server.server_close()
     return 0
