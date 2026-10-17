@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "generated_at": "2026-10-17T12:00:00+00:00",
+  "session_id": "example-session-only",
+  "hvac": [
+    {
+      "id": "climate.replace_me",
+      "label": "Example guest area",
+      "available": true,
+      "current_temperature": 72,
+      "target_temperature": null,
+      "target_temperature_low": 68,
+      "target_temperature_high": 74,
+      "unit": "°F",
+      "mode": "heat_cool",
+      "action": "idle"
+    }
+  ]
+}

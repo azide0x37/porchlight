@@ -148,6 +148,11 @@ landing page is reachable.
 
 ## Home Assistant MQTT Bridge
 
+Guest mode is a staged workstream, not a released capability. See the
+[guest-mode plan and resume checklist](docs/workstreams/guest-mode.md) for the
+Alexa-controllable switch, TV presentation, guest Wi-Fi QR, and HVAC display
+design, plus the uncommissioned Home Assistant starter configuration.
+
 The bridge exposes one Home Assistant device:
 
 `Porchlight LAN Directory`

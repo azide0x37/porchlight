@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "enabled": false,
+  "welcome": "Welcome — make yourself at home",
+  "wifi": {
+    "ssid": "EXAMPLE-GUEST-NETWORK",
+    "security": "WPA",
+    "password": "EXAMPLE-ONLY-REPLACE-LOCALLY",
+    "hidden": false
+  },
+  "alexa": {
+    "lights": [
+      "Alexa, turn on the guest room lights.",
+      "Alexa, dim the guest room lights to 30 percent."
+    ],
+    "music": [
+      "Alexa, play jazz in the living room.",
+      "Alexa, set the living room volume to 3.",
+      "Alexa, stop music in the living room."
+    ]
+  },
+  "presentation": {
+    "title": "A few things for your stay",
+    "stale_after_seconds": 45,
+    "exit_policy": "neutral_screen_keep_tv_on"
+  }
+}
