@@ -1,5 +1,10 @@
 # Release
 
+## 2.6.4
+
+- Use the short default welcome greeting, “Welcome to {home}”.
+- Reserve Spotify caption space and increase line-height so album-title descenders remain visible below large artwork.
+
 ## 2.6.3
 
 - Convert native monochrome Wi-Fi QR pixels to bounded SVG geometry, preserving the code and quiet zone while coloring both modules and background for each palette.

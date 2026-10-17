@@ -257,3 +257,19 @@ the renamed WLAN. Guest Mode remains ON. Public-route authentication and admin
 route isolation passed; a phone scan and physical album-art confirmation remain
 owner acceptance checks. No Alexa or AWS resources were created; the owner
 explicitly deferred that integration. GitHub release publication remains separate.
+
+## Photo follow-up: v2.6.4
+
+The owner's TV photo confirms the large album cover loads, but shows clipped
+Spotify title descenders and a lone word on the welcome's second line. No newer
+UI edits were pending at that point. The live welcome was the preserved v2.6.2
+configuration value, so the owner has now requested its explicit update to the
+new default template as a separate settings change.
+
+The owner clarified that the whole headline should be “Welcome to Botanical”.
+The default template is now simply `Welcome to {home}`; it fits on one line on
+the TV without depending on `text-wrap: balance`, which Chrome 84 lacks.
+The Spotify header and caption cannot flex-shrink; the title has 1.35 line-height
+and the artist/album credit 1.45. The exact text from the photo has no clipped
+scroll extent in the 720p preview. Existing artwork transport and QR logic are
+unchanged. All 126 tests plus shell checks and staged install/doctor pass.

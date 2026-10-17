@@ -226,9 +226,9 @@
   }
 
   // The welcome line comes from Settings and may carry a {home} placeholder. Without a home
-  // name the placeholder and its preposition fall away: "Welcome, make yourself at home".
+  // name the placeholder and its preposition fall away: "Welcome".
   function welcomeText(view) {
-    const raw = String(view.welcome || "Welcome to {home}, make yourself at home");
+    const raw = String(view.welcome || "Welcome to {home}");
     const home = homeName();
     if (home) return raw.replace(/\{home\}/g, home);
     return raw.replace(/\s+(to|at|in)\s+\{home\}/g, "").replace(/\{home\}/g, "").replace(/\s{2,}/g, " ").trim();

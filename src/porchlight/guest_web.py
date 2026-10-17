@@ -143,7 +143,7 @@ PREVIEW_CONFIG = {
     "schema_version": 1,
     "enabled": True,
     "allowed_spotify_entities": ["media_player.spotify_preview"],
-    "welcome": "Welcome to {home}, make yourself at home",
+    "welcome": "Welcome to {home}",
     "home_name": "Botanical",
     "wifi": {"ssid": "Porchlight Guest", "security": "WPA", "password": "lantern-on-the-porch", "hidden": False},
     "alexa": {

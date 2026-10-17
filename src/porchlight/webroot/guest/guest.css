@@ -377,7 +377,7 @@ h2 { font-family: var(--font-serif); font-size: 1.9rem; line-height: 1.1; letter
 .has-spotify .phrase { font-size: 1.15rem; }
 .has-spotify .voice .card-head .meta { display: none; }
 .spotify { overflow: hidden; display: flex; flex-direction: column; view-transition-name: spotify-panel; }
-.spotify .card-head { flex-wrap: wrap; gap: 0.5em; }
+.spotify .card-head { flex: none; flex-wrap: wrap; gap: 0.5em; }
 /* The album art is the card: a square as tall as the stage allows, the title under it. With a
    live Jam the art shares the stage with the Jam code. Container units size the square where
    supported; the aspect-ratio fallback keeps older TV browsers close enough. */
@@ -415,9 +415,9 @@ h2 { font-family: var(--font-serif); font-size: 1.9rem; line-height: 1.1; letter
   .has-jam .jam-qr svg { width: min(34cqw, 72cqh); height: min(34cqw, 72cqh); }
 }
 .jam-label { margin: 0; text-align: center; font-size: 1rem; color: var(--ink-soft); }
-.spotify .track-copy { margin-top: calc(var(--u) * 1.4); min-width: 0; }
-.spotify .track-title { font-size: 1.7rem; line-height: 1.15; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
-.track-artist { margin: 0.3em 0 0; color: var(--ink-soft); font-size: 1.15rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.spotify .track-copy { flex: none; margin-top: calc(var(--u) * 1.4); min-width: 0; }
+.spotify .track-title { font-size: 1.7rem; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.track-artist { margin: 0.3em 0 0; color: var(--ink-soft); font-size: 1.15rem; line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 
 .welcome { padding: 0 calc(var(--u) * 1) calc(var(--u) * 0.2); view-transition-name: welcome; }
 .welcome .headline {
