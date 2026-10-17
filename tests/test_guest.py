@@ -223,6 +223,7 @@ class GuestTest(unittest.TestCase):
             def install():
                 subprocess.run([str(ROOT / "bin/install.sh")], env=env, check=True, capture_output=True)
             install()
+            self.assertFalse((stage / "var/lib/porchlight/www/guest").exists())
             path = stage / "etc/porchlight/guest.json"
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             path.write_text(json.dumps(self.config))

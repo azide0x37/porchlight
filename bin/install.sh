@@ -173,6 +173,8 @@ install_static_webroot() {
   for source in "$static_src"/*; do
     [ -e "$source" ] || continue
     name=${source##*/}
+    # Guest assets belong only to the restricted guest listener.
+    [ "$name" = "guest" ] && continue
     destination="$static_dest/$name"
     if [ -d "$source" ]; then
       rm -rf "$destination"

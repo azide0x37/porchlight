@@ -121,9 +121,9 @@ def load_guest_config(path: Path) -> dict:
         raise ValueError("guest_presentation_policy")
     text(presentation.get("title"), 120)
     alexa = data.get("alexa", {})
-    if not isinstance(alexa, dict) or set(alexa) - {"lights", "music"}:
+    if not isinstance(alexa, dict) or set(alexa) - {"lights", "music", "blinds"}:
         raise ValueError("guest_voice_examples")
-    for category in ("lights", "music"):
+    for category in ("lights", "music", "blinds"):
         commands = alexa.get(category, [])
         if not isinstance(commands, list) or len(commands) > 3:
             raise ValueError("guest_voice_examples")

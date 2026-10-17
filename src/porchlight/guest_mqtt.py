@@ -14,7 +14,8 @@ import time
 from pathlib import Path
 
 from .config import load_config, load_env_file
-from .guest import GuestHTTPServer, GuestState, MAX_PAYLOAD, load_guest_config
+from .guest import GuestState, MAX_PAYLOAD, load_guest_config
+from .guest_web import GuestScreenServer
 from .settings import validate_host, validate_port, validate_topic_part
 
 MAX_FRAME = MAX_PAYLOAD * 6 + 2048  # JSON escaping in mosquitto_sub %j.
@@ -183,7 +184,7 @@ def main():
         if args.check:
             print("guest configuration valid; UI and live acceptance pending")
             return 0
-        server = GuestHTTPServer((settings.get("GUEST_WEB_HOST", "127.0.0.1"), int(settings.get("GUEST_WEB_PORT", "8766"))), state)
+        server = GuestScreenServer((settings.get("GUEST_WEB_HOST", "127.0.0.1"), int(settings.get("GUEST_WEB_PORT", "8766"))), state)
         signal.signal(signal.SIGTERM, lambda *_: stop.set())
         signal.signal(signal.SIGINT, lambda *_: stop.set())
         thread = threading.Thread(target=server.serve_forever, daemon=True)

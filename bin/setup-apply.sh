@@ -15,6 +15,10 @@ case "$ACTION" in
     systemctl start porchlight-ha-mqtt-bridge.service
     systemctl try-restart porchlight-guest.service
     ;;
+  restart_guest)
+    # Dashboard saved /etc/porchlight/guest.json; the unit exits cleanly while disabled.
+    systemctl restart porchlight-guest.service
+    ;;
   shutdown_setup_ap)
     if [ -f "$CONFIG_DIR/setup.env" ]; then
       # shellcheck disable=SC1090

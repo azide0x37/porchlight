@@ -61,6 +61,10 @@ patterns:
         - homeassistant/porchlight_guest.yaml
         - tests/test_guest.py
         - tests/test_guest_homeassistant.py
+        - src/porchlight/guest_web.py
+        - src/porchlight/guest_settings.py
+        - src/porchlight/webroot/guest
+        - tests/test_guest_screen.py
     ai_analysis_sidecar:
       atom: T2R7.ai-analysis-sidecar
       status: draft MPL pattern

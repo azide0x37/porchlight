@@ -12,6 +12,9 @@
       "Alexa, play jazz in the living room.",
       "Alexa, set the living room volume to 3.",
       "Alexa, stop music in the living room."
+    ],
+    "blinds": [
+      "Alexa, close blind 50%."
     ]
   },
   "presentation": {

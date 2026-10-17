@@ -12,7 +12,7 @@ const state = {
   suppressHashRender: false,
   refreshError: "",
   setupLoaded: false,
-  setupStatus: { setup: {}, mqtt: {}, openai: {}, wifi: {} },
+  setupStatus: { setup: {}, mqtt: {}, openai: {}, wifi: {}, guest: {} },
 };
 
 const themeModes = ["light", "system", "dark"];
@@ -876,6 +876,9 @@ function renderSettings() {
   const mqtt = state.setupStatus.mqtt || {};
   const openai = state.setupStatus.openai || {};
   const wifi = state.setupStatus.wifi || {};
+  const guest = state.setupStatus.guest || {};
+  const guestWifi = guest.wifi || {};
+  const guestAlexa = guest.alexa || {};
   const setupMode = setup.appliance_mode && !setup.setup_complete;
   const networks = Array.isArray(wifi.networks) ? wifi.networks : [];
   const wifiNetworkOptions = networks
@@ -907,6 +910,7 @@ function renderSettings() {
         ${stat("AI status", openai.analysis_status?.status || state.analysis.status || "missing", openai.model || "gpt-5-mini", "var(--porch-amber)")}
         ${stat("Wi-Fi", wifi.connected ? "Connected" : "Not connected", wifi.ssid || wifi.message || "setup AP available", "var(--porch-leaf)")}
         ${stat("Address", setup.mdns_name || "porchlight.local", setup.setup_ssid || "local dashboard", "var(--porch-clay)")}
+        ${stat("Guest screen", guestStatusLabel(guest), guest.wifi?.ssid ? `Wi-Fi: ${guest.wifi.ssid}` : "no guest Wi-Fi yet", "var(--porch-amber)")}
       </div>
     </section>`;
   return `<div class="stack">
@@ -932,6 +936,32 @@ function renderSettings() {
       </form>
     </section>
     <section class="section">
+      ${sectionHead("Hosting Guests", "TV screen")}
+      <form class="settings-form" id="guest-settings">
+        <p class="form-note">Home Assistant can send the guest Wi-Fi along with its presentation; when it does, those details take precedence on the TV and the Wi-Fi fields below are only the fallback.</p>
+        <label><span>Enable guest screen</span><input type="checkbox" name="enabled" ${guest.enabled ? "checked" : ""}></label>
+        <label><span>Welcome line</span><input name="welcome" value="${escapeHtml(guest.welcome || "")}" maxlength="200" autocomplete="off"></label>
+        <label><span>Subtitle</span><input name="title" value="${escapeHtml(guest.title || "")}" maxlength="120" autocomplete="off"></label>
+        <label><span>Fallback Wi-Fi name</span><input name="ssid" value="${escapeHtml(guestWifi.ssid || "")}" maxlength="32" autocomplete="off" placeholder="Leave blank to rely on Home Assistant"></label>
+        <label><span>Security</span><select name="security">
+          <option value="WPA" ${guestWifi.security !== "nopass" ? "selected" : ""}>WPA2 / WPA3 password</option>
+          <option value="nopass" ${guestWifi.security === "nopass" ? "selected" : ""}>Open network</option>
+        </select></label>
+        <label><span>Fallback Wi-Fi password</span><input name="password" type="password" placeholder="${guestWifi.password_set ? "Stored - leave blank to keep" : "8-63 characters"}" autocomplete="new-password"></label>
+        <label><span>Hidden network</span><input type="checkbox" name="hidden" ${guestWifi.hidden ? "checked" : ""}></label>
+        <label><span>Lights phrases</span><textarea name="alexa_lights" rows="3" placeholder="One phrase per line, up to three">${escapeHtml((guestAlexa.lights || []).join("\n"))}</textarea></label>
+        <label><span>Music phrases</span><textarea name="alexa_music" rows="3" placeholder="One phrase per line, up to three">${escapeHtml((guestAlexa.music || []).join("\n"))}</textarea></label>
+        <label><span>Blinds phrases</span><textarea name="alexa_blinds" rows="3" placeholder="Alexa, close blind 50%.">${escapeHtml((guestAlexa.blinds || []).join("\n"))}</textarea></label>
+        <label><span>Climate entities</span><input name="allowed_climate_entities" value="${escapeHtml((guest.allowed_climate_entities || []).join(", "))}" placeholder="climate.guest_room, climate.living_room" autocomplete="off"></label>
+        <p class="form-result" role="status">${escapeHtml(guestStatusText(guest))}</p>
+        <div class="form-actions">
+          <button type="submit">Save guest screen</button>
+          <button type="button" data-action="rotate-guest-link">New access link</button>
+        </div>
+        <p class="form-result" id="guest-result" role="status"></p>
+      </form>
+    </section>
+    <section class="section">
       ${sectionHead("OpenAI", "AI analysis")}
       <form class="settings-form" id="openai-settings">
         <label><span>Enable AI analysis</span><input type="checkbox" name="analysis_enabled" ${openai.analysis_enabled ? "checked" : ""}></label>
@@ -950,6 +980,60 @@ function renderSettings() {
       </form>
     </section>
   </div>`;
+}
+
+function guestStatusLabel(guest) {
+  if (!guest || !guest.configured) return "Not set up";
+  if (!guest.enabled) return "Disabled";
+  const receiver = guest.receiver || {};
+  const labels = { active: "On the TV", starting: "Starting", degraded: "Degraded", off: "Off", unavailable: "Unavailable", stopped: "Stopped" };
+  return labels[receiver.status] || receiver.status || "Unknown";
+}
+
+function guestStatusText(guest) {
+  if (!guest || !guest.configured) return "Saving creates /etc/porchlight/guest.json (owner-only). The TV screen shows the guest Wi-Fi as a QR code (Home Assistant's details first, these as fallback), voice examples, and read-only climate.";
+  if (!guest.enabled) return "The guest screen is disabled. Enable it, save, and issue an access link for the Home Assistant automation.";
+  const receiver = guest.receiver || {};
+  if (receiver.status === "stopped") return "porchlight-guest is not running or has not written a status yet.";
+  if (receiver.status === "active") return "Guest mode is on and the TV screen is heartbeating.";
+  if (receiver.status === "starting") return "Guest mode is on; waiting for the TV screen's first heartbeat.";
+  if (receiver.status === "degraded") return "Guest mode is on but the TV screen has stopped heartbeating.";
+  if (receiver.status === "off") return "Guest mode is off. The TV shows its neutral screen.";
+  if (receiver.status === "unavailable") return `Home Assistant's guest presentation is unavailable${receiver.error ? ` (${receiver.error})` : ""}.`;
+  return `Guest receiver status: ${receiver.status || "unknown"}.`;
+}
+
+function guestPayload(form) {
+  const lines = (name) => String(form.elements[name].value || "").split("\n").map((line) => line.trim()).filter(Boolean);
+  const payload = {
+    enabled: form.elements.enabled.checked,
+    welcome: form.elements.welcome.value,
+    title: form.elements.title.value,
+    ssid: form.elements.ssid.value,
+    security: form.elements.security.value,
+    hidden: form.elements.hidden.checked,
+    alexa: { lights: lines("alexa_lights"), music: lines("alexa_music"), blinds: lines("alexa_blinds") },
+    allowed_climate_entities: form.elements.allowed_climate_entities.value,
+  };
+  if (form.elements.password.value) payload.password = form.elements.password.value;
+  return payload;
+}
+
+function applyGuestResult(data, message) {
+  const guest = data.guest || {};
+  const token = guest.access_token_once;
+  delete guest.access_token_once;
+  state.setupStatus.guest = guest;
+  render({ focus: false });
+  if (!token) {
+    setResult("#guest-result", message);
+    return;
+  }
+  const host = window.location.hostname || "porchlight.local";
+  const link = `http://${host}:${guest.guest_port || 8766}/guest/#t=${token}`;
+  const loopback = !guest.guest_host || guest.guest_host === "127.0.0.1" || guest.guest_host === "localhost";
+  const reach = loopback ? " porchlight-guest still listens on 127.0.0.1; set GUEST_WEB_HOST in /etc/porchlight/guest.env so the TV can reach it." : "";
+  setResult("#guest-result", `${message} Paste this link into the Home Assistant guest automation now; it is shown only once: ${link}${reach}`);
 }
 
 function empty(message) {
@@ -1120,6 +1204,27 @@ function bindSettings() {
       setTimeout(refresh, 2000);
     } catch (error) {
       setResult("#openai-result", error.message, false);
+    }
+  });
+  const guestForm = document.querySelector("#guest-settings");
+  if (guestForm) {
+    guestForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setResult("#guest-result", "Saving guest screen settings...");
+      try {
+        const data = await postJson("/api/setup/guest", guestPayload(guestForm));
+        applyGuestResult(data, "Guest screen settings saved; porchlight-guest is restarting.");
+      } catch (error) {
+        setResult("#guest-result", error.message, false);
+      }
+    });
+  }
+  document.querySelector("[data-action='rotate-guest-link']")?.addEventListener("click", async () => {
+    try {
+      const data = await postJson("/api/setup/guest", { rotate_token: true });
+      applyGuestResult(data, "New access link issued; the old link stops working when porchlight-guest restarts.");
+    } catch (error) {
+      setResult("#guest-result", error.message, false);
     }
   });
   const wifi = document.querySelector("#wifi-settings");

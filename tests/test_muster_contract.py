@@ -202,3 +202,22 @@ class MusterContractTest(unittest.TestCase):
         self.assertIn("update_mqtt_settings", web)
         self.assertIn("/api/setup/openai", web)
         self.assertIn("update_openai_settings", web)
+
+    def test_guest_screen_is_isolated_and_documented(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        web = (ROOT / "src/porchlight/web.py").read_text(encoding="utf-8")
+        apply_script = (ROOT / "bin/setup-apply.sh").read_text(encoding="utf-8")
+        receiver = (ROOT / "src/porchlight/guest_mqtt.py").read_text(encoding="utf-8")
+        render = (ROOT / "src/porchlight/render.py").read_text(encoding="utf-8")
+        muster = (ROOT / "muster.yaml").read_text(encoding="utf-8")
+        self.assertIn("## Guest Screen", readme)
+        self.assertIn("guest TV screen is restricted and fail-closed", readme)
+        self.assertIn("/api/setup/guest", web)
+        self.assertIn("restart_guest", web)
+        self.assertIn("restart_guest)", apply_script)
+        self.assertIn("GuestScreenServer", receiver)
+        self.assertIn('GUEST_SCREEN_DIR = "guest"', render)
+        self.assertIn("src/porchlight/guest_web.py", muster)
+        self.assertIn("tests/test_guest_screen.py", muster)
+        for name in ["index.html", "guest.css", "guest.js", "arrive.js", "vendor/qrcode-generator.js"]:
+            self.assertTrue((ROOT / "src/porchlight/webroot/guest" / name).is_file(), name)

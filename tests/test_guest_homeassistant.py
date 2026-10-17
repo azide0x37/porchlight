@@ -30,6 +30,49 @@ def mapping(loader, node):
 UniqueLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, mapping)
 
 
+FIXTURE_TIME = datetime(2026, 10, 17, 18, tzinfo=timezone.utc)
+ZONE_IDS = ("climate.living_room_thermostat", "climate.bedroom_ac", "climate.kitchen_ac")
+
+
+def fixture_cases():
+    """Synthetic inputs to the actual HA template; no thermostat is changed."""
+    single_zone_cases = {
+        "heat": ("heat", {"temperature": 70, "current_temperature": 68.5, "hvac_action": "heating"}),
+        "cool": ("cool", {"temperature": 72, "current_temperature": 73.25, "hvac_action": "cooling"}),
+        # Some integrations retain both single and range attributes. Preserve both.
+        "heat_cool": ("heat_cool", {"temperature": 71, "target_temp_low": 68,
+                                      "target_temp_high": 74, "hvac_action": "idle"}),
+        "off": ("off", {"current_temperature": 0, "hvac_action": "off"}),
+        "fan_only": ("fan_only", {"current_temperature": 73, "hvac_action": "fan"}),
+        "dry": ("dry", {"current_temperature": 73, "hvac_action": "drying"}),
+        "unavailable": ("unavailable", {"current_temperature": 99, "temperature": 66}),
+        "unknown": ("unknown", {}),
+        "celsius": ("heat", {"temperature": 21.5, "current_temperature": 20.5, "hvac_action": "heating"}),
+    }
+    cases = {
+        name: (True, {entity: value for entity in ZONE_IDS}, "°C" if name == "celsius" else "°F")
+        for name, value in single_zone_cases.items()
+    }
+    cases["mixed_zones"] = (True, dict(zip(ZONE_IDS, (
+        single_zone_cases["heat"], single_zone_cases["cool"], single_zone_cases["unavailable"],
+    ))), "°F")
+    cases["disabled"] = (False, {entity: single_zone_cases["cool"] for entity in ZONE_IDS}, "°F")
+    return cases
+
+
+def render_fixture(environment, source, enabled, zones, unit):
+    # The live tenant is Fahrenheit. This explicit test-only variant documents
+    # the same template's receiver contract for a Celsius deployment.
+    if unit == "°C":
+        assert source.count("'unit': '°F'") == 1
+        source = source.replace("'unit': '°F'", "'unit': '°C'")
+    return json.loads(environment.from_string(source).render(
+        guest_enabled=enabled, utcnow=lambda: FIXTURE_TIME,
+        states=lambda entity: "fixture-session" if entity.startswith("input_text") else zones[entity][0],
+        state_attr=lambda entity, key: zones[entity][1].get(key),
+    ))
+
+
 class HomeAssistantGuestContractTest(unittest.TestCase):
     def setUp(self):
         self.package = yaml.load((ROOT / "homeassistant/porchlight_guest.yaml").read_text(), Loader=UniqueLoader)
@@ -50,30 +93,23 @@ class HomeAssistantGuestContractTest(unittest.TestCase):
             if "{{" in source or "{%" in source:
                 self.environment.from_string(source)
         source = self.package["script"]["porchlight_guest_publish"]["sequence"][1]["data"]["payload"]
-        now = datetime.now(timezone.utc)
-        allowed = {"climate.living_room_thermostat", "climate.bedroom_ac", "climate.kitchen_ac"}
-        scenarios = [
-            (True, "cool", {"temperature": 72, "current_temperature": 73, "hvac_action": "cooling"}),
-            (True, "heat_cool", {"target_temp_low": 68, "target_temp_high": 74, "hvac_action": "idle"}),
-            (True, "off", {"current_temperature": 0, "hvac_action": "off"}),
-            (True, "unavailable", {"current_temperature": 99, "temperature": 66}),
-            (True, "unknown", {}), (False, "cool", {"temperature": 72}),
-        ]
-        for enabled, mode, attrs in scenarios:
-            with self.subTest(enabled=enabled, mode=mode):
-                raw = self.environment.from_string(source).render(
-                    guest_enabled=enabled, utcnow=lambda: now,
-                    states=lambda entity: "test-session" if entity.startswith("input_text") else mode,
-                    state_attr=lambda entity, key: attrs.get(key),
-                ).encode()
-                data, _ = validate_presentation(raw, allowed, now.timestamp())
+        for name, (enabled, zones, unit) in fixture_cases().items():
+            with self.subTest(case=name):
+                rendered = render_fixture(self.environment, source, enabled, zones, unit)
+                expected = json.loads((ROOT / f"examples/guest-mode/fixtures/presentation.{name}.json").read_text())
+                self.assertEqual(rendered, expected)
+                data, _ = validate_presentation(json.dumps(rendered).encode(), set(ZONE_IDS), FIXTURE_TIME.timestamp())
                 self.assertEqual(data["enabled"], enabled)
                 if not enabled:
                     self.assertEqual(data["hvac"], [])
-                elif mode in {"unknown", "unavailable"}:
-                    self.assertIsNone(data["hvac"][0]["current_temperature"])
-                elif attrs.get("current_temperature") == 0:
-                    self.assertEqual(data["hvac"][0]["current_temperature"], 0)
+                else:
+                    self.assertEqual(len(data["hvac"]), 3)
+                    self.assertEqual([zone["label"] for zone in data["hvac"]], ["Living room", "Bedroom", "Kitchen"])
+                    for zone in data["hvac"]:
+                        mode, attrs = zones[zone["id"]]
+                        self.assertEqual(zone["unit"], unit)
+                        self.assertEqual(zone["mode"], mode if zone["available"] else None)
+                        self.assertEqual(zone["current_temperature"], attrs.get("current_temperature") if zone["available"] else None)
 
     def test_no_remote_commands_credentials_or_climate_mutations(self):
         actions = []

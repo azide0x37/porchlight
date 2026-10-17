@@ -34,10 +34,15 @@ def render(config: Config, store: Store) -> dict:
     return snapshot
 
 
+GUEST_SCREEN_DIR = "guest"  # served by porchlight-guest from the release tree, never from the dashboard webroot
+
+
 def write_static(www_dir: Path) -> None:
     if not WEBROOT.is_dir():
         raise FileNotFoundError(f"missing dashboard webroot: {WEBROOT}")
     for source in WEBROOT.iterdir():
+        if source.name == GUEST_SCREEN_DIR:
+            continue
         destination = www_dir / source.name
         if source.is_dir():
             if destination.exists():

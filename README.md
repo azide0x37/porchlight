@@ -146,11 +146,58 @@ ports. HTTP/HTTPS services are linked directly from the dashboard, and
 Porchlight tries to use the root page `<title>` as the link text when the
 landing page is reachable.
 
+## Guest Screen
+
+`porchlight-guest.service` also serves the guest TV screen at `/guest/` on its
+own listener (`GUEST_WEB_HOST:GUEST_WEB_PORT`, default `127.0.0.1:8766`). Home
+Assistant opens `http://<guest-host>:8766/guest/#t=<access_token>` on the TV; the
+token travels in the URL fragment, never in a query string or log, and the page
+moves it into session storage and scrubs the address bar. The admin dashboard
+listener answers 404 for the guest surface and renders never copy it into
+`/var/lib/porchlight/www`.
+
+The screen is a 10-foot kiosk composition for a 16:9 TV: one CSS unit is 1% of
+the frame height, so 1280x720, 1920x1080, and 3840x2160 render the same layout
+inside a 5% overscan margin. It shows the guest Wi-Fi as a locally generated QR
+code (vendored `qrcode-generator`, MIT; byte mode, EC level M, about 47% of the
+screen height) or, when Home Assistant is the source, a QR image proxied by the
+guest service from the same origin, the network name and (when known) password
+in plain text for manual joins,
+up to three Alexa examples each for lights, music, and blinds, and read-only
+climate cards with current temperature, setpoint or range, mode, and action.
+While guest mode is off it shows a neutral clock screen. State changes, the
+moving voice highlight, and temperature updates animate through the View
+Transitions API; `@view-transition { navigation: auto }` crossfades same-origin
+navigations such as the nightly self-refresh; browsers without the API get the
+same DOM swap without animation, and `prefers-reduced-motion` disables it. The
+palette follows the time of day (morning, afternoon, evening, night).
+
+All of the screen's asset and API paths are relative, so the guest service can
+sit behind an HTTPS reverse proxy at the origin root or under a path prefix; the
+chosen display adapter is a Home Assistant Cast dashboard whose Lovelace
+`webpage` card frames the screen (see `docs/workstreams/notes/`).
+
+The screen fails closed: it polls `../api/guest` every five seconds, heartbeats
+after each render, and after 45 seconds without a successful poll it hides the
+QR and password and blanks climate even if the backend is still running. A 401
+forgets the token and shows the neutral screen.
+
+Guest Wi-Fi details sent by Home Assistant with the presentation take precedence
+on the TV; the local configuration below is the fallback when none arrive. The
+dashboard Settings view edits `/etc/porchlight/guest.json` (fallback Wi-Fi name,
+security, password, hidden flag, welcome copy, voice phrases, climate allowlist,
+enable flag) through `/api/setup/guest`. Every write is validated with the
+backend's own loader on a mode-0600 temp file before it replaces the live file,
+the response never echoes the password, a new access token is shown exactly
+once, and the allowlisted `restart_guest` setup action restarts the service.
+`PYTHONPATH=src python3 -m porchlight.guest_web --preview` serves the screen
+with synthetic data for design review.
+
 ## Home Assistant MQTT Bridge
 
 Guest Mode now has an opt-in backend and a [Home Assistant package](homeassistant/porchlight_guest.yaml)
 for an Alexa-presentable switch, cancellable Vizio activation, limited HVAC
-snapshots, and presentation diagnostics. The guest UI is deferred. See the
+snapshots, and presentation diagnostics. The TV screen is described under Guest Screen below. See the
 [backend API and commissioning handoff](docs/workstreams/guest-mode.md); the
 separate listener defaults to loopback and never serves administrator routes.
 
@@ -407,7 +454,8 @@ This writes:
 | Python justified and run through `uv` | PASS | bridge uses Python for JSON/discovery payload generation; `make test` runs `uv run python -m unittest discover -s tests` |
 | MPL atoms documented | PASS | `muster.yaml`, `MUSTER.md`, and this README name the relevant MPL patterns including draft `T2R7.ai-analysis-sidecar` |
 | README self-certifies compliance | PASS | this table |
-| guest backend / `T2C5.local-sidecar-bridge` | PASS (backend) | `porchlight-guest.service`, 16 KiB MQTT schema, 45-second expiry, authenticated restricted API, session acknowledgements, owner-only config and lifecycle tests; guest UI remains deferred |
-| guest HA / Alexa / TV acceptance | PENDING | canonical HA package and Jinja contract tests; deployment and hardware evidence are recorded separately in `docs/workstreams/guest-mode.md` |
-| tests current | PASS | `make test`: 60 tests plus shell checks and staged install/doctor; live loopback MQTT outage/reconnect smoke passed |
+| guest backend / `T2C5.local-sidecar-bridge` | PASS (backend) | `porchlight-guest.service`, 16 KiB MQTT schema, 45-second expiry, authenticated restricted API, session acknowledgements, owner-only config and lifecycle tests; guest screen ships on the same listener (next row) |
+| guest TV screen is restricted and fail-closed | PASS | `src/porchlight/guest_web.py` allowlists `/guest/` assets on the guest listener only; the admin listener returns 404 for `/guest*` and `/api/guest*`; the screen hides credentials after 45 s without a fresh poll; dashboard writes to `guest.json` are validated by `load_guest_config` and kept 0600; `tests/test_guest_screen.py` |
+| guest HA / Alexa / TV acceptance | PARTIAL | HA configuration check, Alexa exposure, idempotent ON, OFF cancellation, and cold Vizio wake to `ui_pending` verified; spoken Alexa and rendered TV acceptance pending; see `docs/workstreams/notes/2026-10-17-backend-reply-to-fable.md` |
+| tests current | PASS (backend) | `make test`: 60 backend tests plus shell checks and staged install/doctor; 11 committed HVAC template fixtures; live loopback MQTT outage/reconnect smoke passed; concurrent UI changes require their own integrated run |
 | package builds | PASS | `make package DIST=/tmp/porchlight-guest-package` includes the guest backend, HA package, docs and tests; no release publication or replacement of v2.5.0 deployment |

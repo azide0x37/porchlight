@@ -76,16 +76,18 @@ serving, or forwarding to the admin dashboard.
 
 | Endpoint | Contract |
 | --- | --- |
-| `GET /healthz` | Process liveness only; returns `ui_available: false`. |
+| `GET /healthz` | Process liveness; returns `ui_available: true` now that the screen is served by the same listener. |
 | `GET /api/guest/status` | Sanitized state, session, error, freshness, and remaining lifetime. |
 | `GET /api/guest` | Same status plus welcome/title, allowlisted HVAC, voice examples, Wi-Fi and escaped `qr_payload` only during a fresh enabled session. |
 | `POST /api/guest/heartbeat` | JSON `session_id`, `presentation_id`, `visible` (boolean). Rejects old/inactive sessions. |
 
-The listener returns 404 for `/guest/`, all admin/setup endpoints, scanner JSON,
-traversal paths, and query-token requests. **No guest HTML or QR renderer ships
-in this change.** The UI should generate the QR locally from `qr_payload`, insert
-labels as text, poll within five seconds, and blank all content when its local
-freshness deadline or connection fails. Send a visible heartbeat at least every
+The listener serves only the allowlisted screen assets under `/guest/` (see
+`src/porchlight/guest_web.py`) and returns 404 for all admin/setup endpoints,
+scanner JSON, traversal paths, and query-token requests. The screen generates the
+QR locally from `qr_payload`, inserts labels as text, polls every five seconds,
+and blanks all content when its local freshness deadline or connection fails.
+See the README "Guest Screen" section and
+[the Claude → Codex handoff note](notes/2026-10-17-guest-screen-handoff-to-codex.md). Send a visible heartbeat at least every
 10 seconds only after rendering; a hidden/neutral view sends `visible: false`.
 
 `starting` means ON but no current presenter acknowledgement. After 30 seconds
@@ -147,7 +149,26 @@ stop the guest service, and restore/remove only this HA package. Preserve guest
 configuration and existing scanner MQTT topics. Remove only this feature's
 retained `/guest/requested` and `/guest/availability` state if needed.
 
+Live commissioning on 2026-10-17 passed HA configuration validation, Alexa
+exposure, repeated-ON session preservation, OFF cancellation, and cold Vizio
+wake to `ui_pending`. Botanical's native UniFi QR image is enabled and renders
+in HA. The backend package is not yet installed on Calliope's v2.5.0 release.
+See [the backend reply to Fable](notes/2026-10-17-backend-reply-to-fable.md)
+for the adapter decision, 11 HVAC fixtures, service restart semantics, and
+remaining UI/voice/QR commissioning.
+
 References: [HA template switch](https://www.home-assistant.io/integrations/template/#switch),
 [HA Google Cast](https://www.home-assistant.io/integrations/cast/),
 [Nabu Casa Alexa exposure](https://support.nabucasa.com/hc/en-us/articles/25619363899677-Configuring-Amazon-Alexa-to-work-with-Home-Assistant),
 [Mosquitto subscriber](https://mosquitto.org/man/mosquitto_sub-1.html).
+
+## Cross-agent notes
+
+- [2026-10-17 guest screen handoff (Claude → Codex)](notes/2026-10-17-guest-screen-handoff-to-codex.md):
+  what the screen needs from the backend (real HVAC fixtures, a display adapter
+  that can open the screen URL, docs alignment) and which files each agent owns.
+- [2026-10-17 backend reply (Codex → Claude)](notes/2026-10-17-backend-reply-to-fable.md):
+  fixtures, the Cast `webpage`-card adapter behind an HTTPS proxy, UniFi QR image, restart notes.
+- [2026-10-17 screen reply (Claude → Codex)](notes/2026-10-17-screen-reply-to-codex.md):
+  fixture-driven rendering rules, relative URLs for the proxy, a Wi-Fi contract that
+  carries either a local payload or a same-origin HA QR image, open owner decisions.
