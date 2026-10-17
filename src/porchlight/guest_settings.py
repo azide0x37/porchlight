@@ -92,6 +92,7 @@ def masked_guest_settings(config_dir: Path) -> dict[str, object]:
         "configured": (config_dir / GUEST_FILE).is_file(),
         "enabled": bool(data.get("enabled") is True),
         "welcome": str(data.get("welcome") or ""),
+        "home_name": str(data.get("home_name") or ""),
         "title": str(presentation.get("title") or ""),
         "wifi": {
             "ssid": str(wifi.get("ssid") or "") if wifi else "",
@@ -201,6 +202,12 @@ def update_guest_settings(config_dir: Path, payload: dict[str, object]) -> dict[
         data["enabled"] = bool_value(payload["enabled"], False)
     if "welcome" in payload:
         data["welcome"] = clean_text(payload["welcome"], 200, "welcome line")
+    if "home_name" in payload:
+        home_name = str(payload["home_name"] or "").strip()
+        if home_name:
+            data["home_name"] = clean_text(home_name, 60, "home name")
+        else:
+            data.pop("home_name", None)
     if "title" in payload:
         data["presentation"]["title"] = clean_text(payload["title"], 120, "subtitle")
     if any(key in payload for key in ("ssid", "security", "hidden", "password")):

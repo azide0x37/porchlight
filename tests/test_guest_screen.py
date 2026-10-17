@@ -68,10 +68,10 @@ class ScreenAllowlistTest(unittest.TestCase):
         vendor = (WEBROOT / "guest/vendor/qrcode-generator.js").read_text(encoding="utf-8")
         self.assertIn("Porchlight - Hosting Guests", index)
         # Relative asset and API paths keep the screen working behind a reverse proxy prefix.
-        self.assertIn("./guest.css?v=2.6.0", index)
-        self.assertIn("./guest.js?v=2.6.0", index)
-        self.assertIn("./vendor/qrcode-generator.js?v=2.6.0", index)
-        self.assertIn("./arrive.js?v=2.6.0", index)
+        self.assertIn("./guest.css?v=2.6.1", index)
+        self.assertIn("./guest.js?v=2.6.1", index)
+        self.assertIn("./vendor/qrcode-generator.js?v=2.6.1", index)
+        self.assertIn("./arrive.js?v=2.6.1", index)
         self.assertNotIn('href="/', index)
         self.assertNotIn('src="/', index)
         self.assertNotIn('url("/', css)
@@ -221,6 +221,7 @@ class GuestScreenServerTest(unittest.TestCase):
         self.assertTrue(view["enabled"])
         self.assertEqual(view["status"], "starting")
         self.assertEqual(view["wifi"]["qr_payload"], "WIFI:T:WPA;S:Porchlight Guest;P:lantern-on-the-porch;H:false;;")
+        self.assertEqual(view["home_name"], "Botanical")
         self.assertEqual(len(view["hvac"]), 2)
 
         status, ack = self.post(
@@ -297,6 +298,7 @@ class GuestSettingsTest(unittest.TestCase):
                 {
                     "enabled": True,
                     "welcome": "Welcome, friends",
+                    "home_name": "Botanical",
                     "title": "House notes",
                     "ssid": "Porch Guest",
                     "security": "WPA",
@@ -310,6 +312,8 @@ class GuestSettingsTest(unittest.TestCase):
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             data = load_guest_config(path)
             self.assertTrue(data["enabled"])
+            self.assertEqual(data["home_name"], "Botanical")
+            self.assertEqual(masked["home_name"], "Botanical")
             self.assertEqual(data["wifi"]["password"], "lantern-on-the-porch")
             self.assertEqual(data["alexa"], {"lights": ["Alexa, lights on.", "Alexa, lights off."], "blinds": ["Alexa, close blind 50%."]})
             self.assertEqual(data["allowed_climate_entities"], ["climate.guest_room", "climate.living_room"])
@@ -322,8 +326,9 @@ class GuestSettingsTest(unittest.TestCase):
             again = update_guest_settings(config_dir, {"ssid": "Porch Guest", "password": "", "security": "WPA"})
             self.assertNotIn("access_token_once", again)
             self.assertEqual(load_guest_config(path)["wifi"]["password"], "lantern-on-the-porch")
-            update_guest_settings(config_dir, {"ssid": ""})
+            update_guest_settings(config_dir, {"ssid": "", "home_name": ""})
             self.assertIsNone(load_guest_config(path)["wifi"])
+            self.assertNotIn("home_name", load_guest_config(path))
             self.assertFalse(masked_guest_settings(config_dir)["wifi"]["password_set"])
 
             # Open networks drop the password; rotation issues a different token.

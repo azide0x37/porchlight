@@ -124,6 +124,8 @@ def load_guest_config(path: Path) -> dict:
         raise ValueError("guest_spotify_allowlist")
     validate_jam(data.get("spotify_jam"))
     text(data.get("welcome"), 200)
+    if data.get("home_name") not in (None, ""):
+        text(data.get("home_name"), 60)
     presentation = data.get("presentation", {})
     if not isinstance(presentation, dict):
         raise ValueError("guest_presentation_policy")
@@ -236,6 +238,7 @@ class GuestState:
     def view(self):
         with self.lock:
             result = self.status()
+            result["home_name"] = self.config.get("home_name") or ""
             if not result["enabled"]:
                 return result
             result.update({"presentation_id": self.presentation_id, "welcome": self.config["welcome"],

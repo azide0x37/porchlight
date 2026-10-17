@@ -126,6 +126,7 @@ class GuestWifiTest(unittest.TestCase):
         self.provider.refresh()
         self.assertEqual(self.request.full_url, "https://ha.example.test/api/image_proxy/image.botanical_qr_code")
         self.assertEqual(self.request.get_header("Authorization"), "Bearer private-test-token")
+        self.assertTrue(self.request.get_header("User-agent").startswith("Porchlight/"))
         self.assertEqual(self.state.view()["wifi"], {"ssid": "Botanical", "security": "WPA", "hidden": False,
                                                      "qr_image": "../api/guest/wifi-qr"})
         self.assertNotIn("private-test-token", json.dumps(self.state.view()))

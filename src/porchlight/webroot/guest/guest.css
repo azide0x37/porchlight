@@ -276,6 +276,17 @@ h2 { font-family: var(--font-serif); font-size: 1.9rem; line-height: 1.1; letter
 .neutral .date { font-size: 1.9rem; }
 .neutral .greeting { font-size: 1.2rem; }
 .neutral .wordmark { font-size: 2.2rem; }
+.neutral .home-name {
+  margin: calc(var(--u) * 0.6) 0 0;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 2.4rem;
+  letter-spacing: 0.01em;
+  color: var(--honey);
+  font-optical-sizing: none;
+  font-variation-settings: "opsz" 72;
+}
+.wordmark .credit { font-size: 0.72em; font-weight: 400; color: var(--ink-mute); }
 .neutral .hint {
   align-self: end;
   margin: 0;

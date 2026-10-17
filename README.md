@@ -280,9 +280,11 @@ the same presentation is fresh and enabled. It refreshes every 15 seconds; the
 screen refreshes its image every 15 seconds. No HA image token URL or Wi-Fi
 password is published over MQTT. Local credentials remain an optional fallback.
 The
-dashboard Settings view edits `/etc/porchlight/guest.json` (fallback Wi-Fi name,
-security, password, hidden flag, welcome copy, voice phrases, climate allowlist,
-enable flag) through `/api/setup/guest`. Every write is validated with the
+dashboard Settings view edits `/etc/porchlight/guest.json` (home name, fallback
+Wi-Fi name, security, password, hidden flag, welcome copy, voice phrases, climate
+allowlist, enable flag) through `/api/setup/guest`. The optional home name (for
+example "Botanical") appears in the screen's greeting, Wi-Fi lead, footer, neutral
+clock screen, and window title. Every write is validated with the
 backend's own loader on a mode-0600 temp file before it replaces the live file,
 the response never echoes the password, a new access token is shown exactly
 once, and the allowlisted `restart_guest` setup action restarts the service.
@@ -566,7 +568,7 @@ This writes:
 | guest backend / `T2C5.local-sidecar-bridge` | PASS (backend) | `porchlight-guest.service`, 16 KiB MQTT schema, 45-second expiry, authenticated restricted API, session acknowledgements, owner-only config and lifecycle tests; guest screen ships on the same listener (next row) |
 | guest TV screen is restricted and fail-closed | PASS | `src/porchlight/guest_web.py` allowlists `/guest/` assets on the guest listener only; the admin listener returns 404 for `/guest*` and `/api/guest*`; the screen hides credentials after 45 s without a fresh poll; dashboard writes to `guest.json` are validated by `load_guest_config` and kept 0600; `tests/test_guest_screen.py` |
 | guest HA / Alexa / TV acceptance | PARTIAL | HA configuration check, Alexa exposure, idempotent ON, OFF cancellation, and cold Vizio wake to `ui_pending` verified; spoken Alexa and rendered TV acceptance pending; see `docs/workstreams/notes/2026-10-17-backend-reply-to-fable.md` |
-| guest media and native Wi-Fi proxy | PASS (local); live credential setup pending | Spotify player allowlist, session-bound Jam expiry, authenticated PNG endpoint, redirect refusal, stale/off rejection, secret masking and removal; `tests/test_guest_media.py`, `tests/test_guest_screen.py` |
+| guest media and native Wi-Fi proxy | PASS (local); live credential setup pending | Spotify player allowlist, session-bound Jam expiry, authenticated PNG endpoint with explicit application identity, redirect refusal, stale/off rejection, secret masking and removal; `tests/test_guest_media.py`, `tests/test_guest_screen.py` |
 | tests current | PASS | `make test`: 111 combined backend, UI, and infrastructure tests plus shell checks and staged install/doctor; 11 HVAC template fixtures; live loopback MQTT outage/reconnect smoke passed |
-| package builds | PASS | `make package DIST=/tmp/porchlight-deploy-2.6.0` includes the guest backend, screen, preserved infrastructure features, HA package, docs, and tests; GitHub release publication remains separate |
+| package builds | PASS | `make package DIST=/tmp/porchlight-deploy-2.6.1` includes the guest backend, screen, preserved infrastructure features, HA package, docs, and tests; GitHub release publication remains separate |
 | infrastructure health is scoped and freshness-aware | PASS (local); provider acceptance pending | 26 infrastructure tests pass in the 111-test combined suite, including HTTP transport contracts; existing provider configuration is preserved. Authenticated full-fleet acceptance remains separate. |

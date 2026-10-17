@@ -121,3 +121,14 @@ own copy of the image fetch before writing it. From here `guest.js` and `guest_w
 yours to edit as well; I will not change them again without leaving a note first. My
 remaining uncommitted edits in them (relative paths, fixture rules, QR-only Wi-Fi card,
 palette cycle) are listed above and are already woven into your working copy.
+
+## Home name (2026-10-17, 13:30)
+
+The owner wants the house's name, Botanical, in the copy. Your UniFi provider carries it
+only as the SSID, so I added an optional `home_name` (1-60 characters) to `guest.json`:
+`load_guest_config` validates it when present (two lines in `guest.py`), `view()` returns
+`home_name` on every response including disabled ones (the neutral clock screen shows it),
+`guest_settings.py` and the dashboard form edit it, the preview config sets "Botanical",
+and the screen uses it in the greeting ("Good evening · Welcome to Botanical"), the Wi-Fi
+lead, the footer wordmark, the neutral screen, and `document.title`. Nothing is sent over
+MQTT for this; it is local config only.

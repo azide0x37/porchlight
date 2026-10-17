@@ -945,6 +945,7 @@ function renderSettings() {
       <form class="settings-form" id="guest-settings">
         <p class="form-note">Home Assistant can send the guest Wi-Fi along with its presentation; when it does, those details take precedence on the TV and the Wi-Fi fields below are only the fallback.</p>
         <label><span>Enable guest screen</span><input type="checkbox" name="enabled" ${guest.enabled ? "checked" : ""}></label>
+        <label><span>Home name</span><input name="home_name" value="${escapeHtml(guest.home_name || "")}" maxlength="60" autocomplete="off" placeholder="Botanical"></label>
         <label><span>Welcome line</span><input name="welcome" value="${escapeHtml(guest.welcome || "")}" maxlength="200" autocomplete="off"></label>
         <label><span>Subtitle</span><input name="title" value="${escapeHtml(guest.title || "")}" maxlength="120" autocomplete="off"></label>
         <label><span>Fallback Wi-Fi name</span><input name="ssid" value="${escapeHtml(guestWifi.ssid || "")}" maxlength="32" autocomplete="off" placeholder="Leave blank to rely on Home Assistant"></label>
@@ -1027,6 +1028,7 @@ function guestPayload(form) {
   const lines = (name) => String(form.elements[name].value || "").split("\n").map((line) => line.trim()).filter(Boolean);
   const payload = {
     enabled: form.elements.enabled.checked,
+    home_name: form.elements.home_name.value,
     welcome: form.elements.welcome.value,
     title: form.elements.title.value,
     ssid: form.elements.ssid.value,

@@ -1,5 +1,10 @@
 # Release
 
+## 2.6.1
+
+- Identify native HA QR requests as Porchlight for compatibility with HTTPS gateways.
+- Add an optional home name to the guest greeting, Wi-Fi card, footer and neutral screen.
+
 ## 2.6.0
 
 - Added the restricted guest presentation service, authenticated API, MQTT freshness

@@ -130,3 +130,9 @@ only in 0600 `guest.env`. Live connection awaits the host's token.
 
 The screen now also honors `expires_in_seconds`, so an almost-expired backend
 snapshot cannot remain visible for another full 45 seconds after a network loss.
+
+## Follow-up integration
+
+The optional `home_name` contract and copy updates are included in the v2.6.1 candidate.
+The native QR client now sends an explicit Porchlight User-Agent for HTTPS gateway compatibility.
+Validation and packaging are being rerun on the combined candidate before rollout.

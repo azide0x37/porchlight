@@ -214,14 +214,22 @@
     return `<p class="status-pill" data-tone="idle">Guest mode off</p>`;
   }
 
+  // The household's name, when the owner has set one in Settings. It travels with every
+  // view, including the neutral one, so the clock screen can carry it too.
+  function homeName() {
+    return model.view && typeof model.view.home_name === "string" ? model.view.home_name.trim() : "";
+  }
+
   function neutralView(reason) {
     const now = new Date();
     const hint = HINTS[reason] || "";
+    const home = homeName();
     return `<section class="neutral" data-view="${esc(reason)}">
       <div class="lamp"><img src="../icon-round.png" alt=""></div>
       <div class="centre">
         <p class="eyebrow greeting">${esc(greeting(now))}</p>
         ${clockHtml(now, "neutral")}
+        ${home ? `<p class="home-name">${esc(home)}</p>` : ""}
       </div>
       <p class="hint">${hint}</p>
       ${statusPill()}
@@ -237,6 +245,7 @@
       </section>`;
     }
     const open = wifi.security === "nopass";
+    const home = homeName();
     const svg = stale || typeof wifi.qr_payload !== "string" || !wifi.qr_payload ? "" : qrSvg(wifi.qr_payload);
     const image = !stale && !svg && model.wifiImage && model.wifiImage.presentation === view.presentation_id
       ? model.wifiImage.url : "";
@@ -247,8 +256,8 @@
     else stageHtml = `<div class="qr-placeholder">Ask us for the Wi\u2011Fi \u2014 the code is on its way.</div>`;
     let lead;
     if (stale) lead = `<p class="lead">Reconnecting to the house. Nothing to do on your side.</p>`;
-    else if (open) lead = `<p class="lead">Point your phone\u2019s camera at the code and tap <strong>Join</strong>. No password needed.</p>`;
-    else lead = `<p class="lead">Point your phone\u2019s camera at the code and tap <strong>Join</strong>. The password comes along with it.</p>`;
+    else if (open) lead = `<p class="lead">Point your phone\u2019s camera at the code and tap <strong>Join</strong>${home ? ` to get on ${esc(home)}\u2019s Wi\u2011Fi` : ""}. No password needed.</p>`;
+    else lead = `<p class="lead">Point your phone\u2019s camera at the code and tap <strong>Join</strong>${home ? ` to get on ${esc(home)}\u2019s Wi\u2011Fi` : ""}. The password comes along with it.</p>`;
     // By the household's choice the network name and password never appear on the TV.
     return `<section class="card wifi">
       <div class="card-head"><div><p class="eyebrow">Wi\u2011Fi</p><h2>Get online</h2></div><p class="meta">${open ? "Open network" : "Secure network"}</p></div>
@@ -314,11 +323,12 @@
   function guestView(view, stale) {
     const now = new Date();
     const spotify = !stale && view.spotify;
+    const home = homeName();
     return `<section class="guest" data-view="${stale ? "stale" : "active"}">
       ${wifiHtml(view, stale)}
       <div class="main">
         <header class="welcome">
-          <p class="eyebrow greeting">${esc(greeting(now))}</p>
+          <p class="eyebrow greeting">${esc(greeting(now))}${home ? ` \u00b7 Welcome to ${esc(home)}` : ""}</p>
           <h1 class="headline">${esc(view.welcome || "Welcome")}</h1>
           <p class="subtitle">${esc(view.title || "")}</p>
         </header>
@@ -329,7 +339,7 @@
         ${comfortHtml(view, stale) || `<section class="card comfort" data-zones="0"><div class="card-head"><div><p class="eyebrow">Comfort</p><h2>Climate</h2></div></div><p class="empty">Make yourself comfortable — let us know if a room needs adjusting.</p></section>`}
       </div>
       <footer class="foot">
-        <div class="brand"><div class="lamp"><img src="../icon-round.png" alt=""></div><p class="wordmark">Porchlight</p></div>
+        <div class="brand"><div class="lamp"><img src="../icon-round.png" alt=""></div><p class="wordmark">${home ? `${esc(home)} <span class="credit">\u00b7 Porchlight</span>` : "Porchlight"}</p></div>
         ${statusPill()}
         <p class="exit-hint">Hosts: <em class="wake">“Alexa, turn off Guest Mode”</em> clears this screen.</p>
         <div class="time">${clockHtml(now, "guest")}</div>
@@ -381,7 +391,7 @@
            formatTemp(zone.current_temperature, zone.unit), formatTemp(zone.target_temperature, zone.unit),
            formatTemp(zone.target_temperature_low, zone.unit), formatTemp(zone.target_temperature_high, zone.unit)])]
       : [];
-    return JSON.stringify([state.screen, state.reason || "", !!state.stale, model.ack, !model.token, significant]);
+    return JSON.stringify([state.screen, state.reason || "", !!state.stale, model.ack, !model.token, homeName(), significant]);
   }
 
   function transition(run) {
@@ -408,6 +418,8 @@
 
   function afterPaint(state) {
     root.dataset.screen = state.screen === "guest" ? (state.stale ? "stale" : "guest") : "neutral";
+    const home = homeName();
+    document.title = home ? `${home} \u00b7 Hosting Guests` : "Porchlight - Hosting Guests";
     const phrases = stage.querySelectorAll(".phrase");
     if (phrases.length) {
       if (model.spot < 0 || model.spot >= phrases.length) model.spot = 0;
@@ -445,7 +457,10 @@
     const greet = stage.querySelector(".greeting");
     if (clock) clock.textContent = timeFormat.format(now);
     if (date) date.textContent = (stage.querySelector(".neutral") ? longDateFormat : shortDateFormat).format(now);
-    if (greet) greet.textContent = greeting(now);
+    if (greet) {
+      const home = homeName();
+      greet.textContent = greeting(now) + (home && !stage.querySelector(".neutral") ? ` \u00b7 Welcome to ${home}` : "");
+    }
   }
 
   function scheduleClock() {

@@ -141,6 +141,7 @@ PREVIEW_CONFIG = {
     "enabled": True,
     "allowed_spotify_entities": ["media_player.spotify_preview"],
     "welcome": "Welcome — make yourself at home",
+    "home_name": "Botanical",
     "wifi": {"ssid": "Porchlight Guest", "security": "WPA", "password": "lantern-on-the-porch", "hidden": False},
     "alexa": {
         "lights": ["Alexa, turn all lights to sunset.", "Alexa, turn kitchen lights to white."],

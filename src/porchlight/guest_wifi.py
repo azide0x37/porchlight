@@ -9,6 +9,8 @@ import urllib.request
 import urllib.error
 from urllib.parse import urlsplit
 
+from . import __version__
+
 MAX_IMAGE = 128 * 1024
 
 
@@ -68,7 +70,8 @@ class GuestWifi:
             presentation_id = self.state.presentation_id
         try:
             request = urllib.request.Request(self.base + "/api/image_proxy/" + self.entity,
-                                             headers={"Authorization": "Bearer " + self.token, "Accept": "image/png"})
+                                             headers={"Authorization": "Bearer " + self.token, "Accept": "image/png",
+                                                      "User-Agent": "Porchlight/" + __version__})
             with self.opener.open(request, timeout=4) as response:
                 body = response.read(MAX_IMAGE + 1)
                 if response.headers.get_content_type() != "image/png":
