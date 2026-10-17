@@ -119,6 +119,7 @@ class GuestTest(unittest.TestCase):
     def test_climate_is_allowlisted_numeric_and_read_only(self):
         for key, value in (("id", "climate.unapproved"), ("current_temperature", True),
                            ("target_temperature", "72"), ("target_temperature", float("inf")),
+                           ("current_temperature", 10 ** 500),
                            ("mode", "run_command"), ("unit", "K"), ("target_temperature_low", 100)):
             zone = {**self.message["hvac"][0], key: value}
             with self.subTest(key=key, value=value):

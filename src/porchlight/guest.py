@@ -84,7 +84,7 @@ def validate_presentation(raw: bytes, allowed: set[str], now: float) -> tuple[di
             raise ValueError("invalid_hvac_type")
         for field in ("current_temperature", "target_temperature", "target_temperature_low", "target_temperature_high"):
             value = zone[field]
-            if value is not None and (type(value) not in (int, float) or not math.isfinite(value) or not -100 <= value <= 250):
+            if value is not None and (type(value) not in (int, float) or not -100 <= value <= 250 or not math.isfinite(value)):
                 raise ValueError("invalid_temperature")
         if zone["mode"] is not None and zone["mode"] not in MODES:
             raise ValueError("invalid_mode")
