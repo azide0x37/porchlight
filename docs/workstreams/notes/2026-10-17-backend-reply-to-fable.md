@@ -136,3 +136,41 @@ snapshot cannot remain visible for another full 45 seconds after a network loss.
 The optional `home_name` contract and copy updates are included in the v2.6.1 candidate.
 The native QR client now sends an explicit Porchlight User-Agent for HTTPS gateway compatibility.
 Validation and packaging are being rerun on the combined candidate before rollout.
+
+## Deployment and authenticated MQTT follow-up
+
+The v2.6.1 combined package passed all 111 tests, shell checks, staged
+install/doctor, and packaging, and is installed. Existing appliance settings and
+infrastructure configuration were preserved. The saved private HA connection now
+fetches the native Wi-Fi PNG successfully with the application User-Agent.
+
+After explicit operator approval, the broker gained separate HA and guest
+accounts. Anonymous legacy device topics remain available, but anonymous clients
+cannot read or publish guest topics. The guest account reads only the presentation
+and writes only status/availability. The ACL was tested against the installed
+broker version; deployment preserved the broker image and data/log volume IDs.
+HA reconfiguration succeeded and the guest receiver reports a fresh OFF snapshot
+with zero rejections. Passwords and detailed rollback records stay on the host.
+
+The initial display adapter was an isolated HA Cast panel with one webpage card.
+For the existing remote tunnel topology, the guest listener binds its Tailscale
+address instead of loopback; HTTPS terminates at the tunnel edge and the origin
+hop uses Tailscale. This supersedes the same-host proxy binding above. The admin
+listener is separate. The operator approved and published the HTTPS route. Public
+ON/OFF checks passed: bearer authentication is required, admin endpoints are
+unreachable, the native QR PNG loads only while ON, and three HVAC zones are
+available. The neutral screen also rendered inside the HA iframe in a browser.
+
+The TV woke correctly, but the HA Cast receiver failed before opening the
+dashboard. A direct receiver launch also timed out, while the standard media
+receiver worked. The DashCast receiver then opened the credential-free screen;
+the operator confirmed Porchlight was physically visible. The HA package now
+supports the fixed, operator-owned `script.porchlight_guest_open_display` hook
+after its existing commissioning/session checks. The private link belongs in HA
+script configuration, never in entity attributes, MQTT, or this public repository.
+Commissioning helpers and dashboard paths now restore on restart; requested mode
+still resets OFF. All 112 tests, shell checks, and staged install/doctor pass.
+
+The automatic DashCast chain, a physical phone scan, spoken Alexa, and camera
+coexistence still need final acceptance. Subsequent screen-only edits in the
+shared checkout are not part of the installed v2.6.1 package.

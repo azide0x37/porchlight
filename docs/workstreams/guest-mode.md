@@ -1,9 +1,11 @@
 # Guest mode backend and Home Assistant handoff
 
-Status: backend implemented on PR #5; guest UI deferred by request (2026-10-17).
-This branch is based on v2.4.0. Calliope currently runs the separate v2.5.0
-infrastructure workstream. Do not replace that installation with this branch's
-full package without integrating the two branches. No release is published here.
+Status: the combined backend, guest screen, and infrastructure workstream shipped
+in the local v2.6.1 deployment (2026-10-17). Authenticated MQTT, the restricted
+HTTPS route, and live UniFi QR retrieval are verified. The built-in HA Cast
+receiver failed to launch on the household TV; DashCast successfully opened the
+screen and the operator confirmed it was visible. Its automated activation and
+session heartbeat are being commissioned. No GitHub release is published here.
 
 ## Ownership and changes from the original plan
 
@@ -22,8 +24,12 @@ switch is an independent HA entity named `Guest Mode`.
 The inspected household display path is Vizio SmartCast power control followed
 by Home Assistant's Google Cast integration. `cast.show_lovelace_view` accepts a
 Home Assistant dashboard path and view path, not an arbitrary Porchlight HTML
-URL. The later UI must implement a compatible presentation surface and the
-backend heartbeat contract, or explicitly replace that display adapter.
+URL. The screen supports an HTTPS iframe and the backend heartbeat contract.
+For receivers that cannot launch HA Cast, an operator-owned
+`script.porchlight_guest_open_display` takes precedence over HA Cast. This fixed
+hook runs only after the same power, session, and commissioning checks. It must
+launch the restricted screen and must not publish its private URL in entity
+attributes or MQTT. The guest backend still accepts no remote control commands.
 
 ## Backend
 
@@ -39,13 +45,14 @@ To configure, edit the installed examples locally:
 
 - Set `enabled: true`, supply a random 32–128 character URL-safe `access_token`,
   and explicitly list up to eight `allowed_climate_entities`.
-- `wifi: null` is supported while the UI is deferred. Supply guest credentials
-  locally later; never copy appliance setup credentials automatically.
+- `wifi: null` is supported when using the native UniFi image proxy described
+  below. Local guest credentials are an optional fallback; never copy appliance
+  setup credentials automatically.
 - Set the broker in `porchlight.mqtt.env` and `HA_MQTT_ENABLE=1`. Authentication is
   required by default. Optional `MQTT_CAFILE`, `MQTT_CERTFILE`, `MQTT_KEYFILE` use
   certificate verification. Anonymous MQTT requires the explicit local-only
   testing override `GUEST_MQTT_ALLOW_ANONYMOUS=1`.
-- The listener defaults to `127.0.0.1:8766`. Keep it private. A later presenter
+- The listener defaults to `127.0.0.1:8766`. Keep the origin private. The presenter
   needs trusted routing/TLS and a way to provide its bearer token. Do not expose
   the admin listener or put tokens in query strings.
 - Validate with `uv run python src/porchlight-guest --apply --check`, then restart
@@ -68,11 +75,11 @@ Unavailable HVAC values become null, not zero. ON→OFF immediately removes all
 Wi-Fi/HVAC/voice content from API responses. A valid reconnect snapshot can
 restore presentation state but cannot wake or power-cycle the TV.
 
-## API for the later UI
+## Guest screen API
 
 All data/heartbeat requests require `Authorization: Bearer <access_token>`.
-Responses use `Cache-Control: no-store`. There is no CORS, cookie auth, file
-serving, or forwarding to the admin dashboard.
+Responses use `Cache-Control: no-store`. There is no CORS, cookie auth, arbitrary
+file serving, or forwarding to the admin dashboard.
 
 | Endpoint | Contract |
 | --- | --- |
@@ -106,10 +113,11 @@ kitchen AC in °F. Adapt these values and MQTT topics for other installations.
 Install into `/config/packages/porchlight_guest.yaml` after backing up any prior
 file and confirming `homeassistant: packages: !include_dir_named packages` is
 already configured. Run `ha core check` before loading. The controller defaults
-OFF on first install and restores its commissioning choice on restart. UI
-readiness and requested mode always start OFF, preventing restart-triggered TV
-wake. Commission the controller only after checking the
-power target. Leave UI readiness OFF until a compatible guest view exists.
+OFF on first install and restores its commissioning choice on restart. Display
+readiness and dashboard/view paths also restore their commissioned values.
+Requested mode always starts OFF, preventing restart-triggered TV wake. Commission
+the controller only after checking the power target. Leave display readiness OFF
+until a compatible guest view has been verified.
 
 Expose only `switch.porchlight_guest_mode` through the existing HA Cloud Alexa
 integration, with the name `Guest Mode`. Verify that all `script.porchlight_guest_*`,
@@ -123,9 +131,28 @@ OFF snapshot. Vizio wake is attempted once, with a 75-second wait (covering its
 30-second power-state polling interval) and three-second
 settling delay. A session/commissioning check precedes Cast. While UI readiness
 is OFF, TV diagnostics report `ui_pending` after successful wake. Otherwise the
-script calls HA Cast once and waits up to 30 seconds for a matching presenter.
+script calls the fixed display hook if installed, otherwise HA Cast, then waits up
+to 30 seconds for a matching presenter.
 Failure is `tv_wake_timeout` or `display_unconfirmed`; neither reports active.
-OFF leaves TV power and input alone; the future UI must clear its content.
+OFF leaves TV power and input alone; the screen clears its content on the next
+poll, and also clears locally when its freshness deadline expires.
+
+### DashCast adapter
+
+The household TV launches the standard Cast receiver and DashCast, but times out
+before the HA Lovelace receiver starts. The tested alternative uses the
+[DashCast integration](https://github.com/AlexxIT/DashCast), v1.1.1, through HACS.
+Create an operator-owned HA script with ID `porchlight_guest_open_display` that
+calls `dash_cast.load_url` for the same allowlisted TV and the private HTTPS
+`/guest/#t=…` link. Use `force: false` and `reload_seconds: 0`; the screen handles
+refresh and privacy expiry. Store the URL in private HA script configuration or
+secrets, not an `input_text` helper, repository, or MQTT message. The private link
+is provided to the receiver running on the TV. Never use the HA access token as
+the display token.
+
+Do not enable the display commissioning helper merely because Cast reports an
+app name. Require the screen's matching session heartbeat and physical acceptance.
+Remove the hook to return to the HA Cast dashboard/view adapter.
 
 The household also has a Laboratory camera automation targeting this TV. Its
 priority/restoration interaction with Guest Mode must be checked before UI
@@ -140,9 +167,11 @@ tenant is separate. `make package DIST=/tmp/porchlight-guest-package` includes t
 backend, unit, defaults, HA package, examples, and this handoff.
 
 A real temporary loopback Mosquitto smoke test (`uv run python tests/guest_mqtt_smoke.py`) verifies retained replay rejection,
-live ON/OFF, broker loss/reconnect, and graceful offline shutdown. Full guest UI,
-QR rendering and phone joins, actual household voice commands, physical screen
-visibility, and display coexistence remain UI/commissioning acceptance work.
+live ON/OFF, broker loss/reconnect, and graceful offline shutdown. The deployed
+public API and native QR image pass ON/OFF checks, including rejection of missing
+authentication and admin routes. A phone joining through the on-TV QR, spoken
+Alexa commands, automated TV rendering, and display coexistence remain separate
+commissioning checks.
 
 Rollback: turn Guest Mode OFF and unexpose its switch; disable the controller,
 stop the guest service, and restore/remove only this HA package. Preserve guest
@@ -151,8 +180,10 @@ retained `/guest/requested` and `/guest/availability` state if needed.
 
 Commissioning must verify HA configuration, Alexa exposure, repeated-ON session
 preservation, OFF cancellation, cold TV wake, and the selected Wi-Fi QR image.
-Keep the guest service disabled until authenticated MQTT and the HTTPS display
-route are configured. Deployment receipts belong in private operator records.
+Keep the guest service disabled until authenticated MQTT is configured. It can
+then receive private OFF snapshots while the HTTPS route is prepared. Keep the
+HA display commissioning gate off until the route and iframe are verified.
+Deployment receipts belong in private operator records.
 See [the backend reply to Fable](notes/2026-10-17-backend-reply-to-fable.md)
 for the adapter decision, 11 HVAC fixtures, service restart semantics, and
 remaining UI/voice/QR commissioning.

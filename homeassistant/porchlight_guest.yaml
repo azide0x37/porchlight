@@ -11,7 +11,8 @@ input_boolean:
     initial: false
   porchlight_guest_ui_ready:
     name: Porchlight guest display commissioned
-    initial: false
+    # First install is off; retain a successfully commissioned display on restart.
+    # Requested mode still starts off, so this cannot wake the TV after a restart.
 
 input_text:
   porchlight_guest_session:
@@ -24,11 +25,10 @@ input_text:
     max: 100
   porchlight_guest_dashboard_path:
     name: Porchlight guest HA Cast dashboard path
-    initial: ""
+    # Restore the operator's path; invalid/unset paths fail closed below.
     max: 100
   porchlight_guest_view_path:
     name: Porchlight guest HA Cast view path
-    initial: guest
     max: 100
 
 template:
@@ -220,26 +220,35 @@ script:
              states('input_text.porchlight_guest_session') == session }}
       - if: >-
           {{ not is_state('input_boolean.porchlight_guest_ui_ready', 'on') or
-             not (states('input_text.porchlight_guest_dashboard_path') | regex_match('^[a-z0-9][a-z0-9_-]{0,99}$')) or
-             not (states('input_text.porchlight_guest_view_path') | regex_match('^[a-z0-9][a-z0-9_-]{0,99}$')) }}
+             (not has_service('script', 'porchlight_guest_open_display') and
+              (not (states('input_text.porchlight_guest_dashboard_path') | regex_match('^[a-z0-9][a-z0-9_-]{0,99}$')) or
+               not (states('input_text.porchlight_guest_view_path') | regex_match('^[a-z0-9][a-z0-9_-]{0,99}$')))) }}
         then:
           - action: input_text.set_value
             target:
               entity_id: input_text.porchlight_guest_tv_status
             data:
               value: ui_pending
-          - stop: Guest UI is deferred; TV is awake
+          - stop: Guest display is not commissioned; TV is awake
       - action: input_text.set_value
         target:
           entity_id: input_text.porchlight_guest_tv_status
         data:
           value: display_requested
-      - action: cast.show_lovelace_view
-        continue_on_error: true
-        data:
-          entity_id: media_player.visio_tv
-          dashboard_path: "{{ states('input_text.porchlight_guest_dashboard_path') }}"
-          view_path: "{{ states('input_text.porchlight_guest_view_path') }}"
+      # A fixed, operator-owned script supports an alternate webpage receiver.
+      # Its private display URL stays in HA, never in helper states or MQTT.
+      - choose:
+          - conditions: "{{ has_service('script', 'porchlight_guest_open_display') }}"
+            sequence:
+              - action: script.porchlight_guest_open_display
+                continue_on_error: true
+        default:
+          - action: cast.show_lovelace_view
+            continue_on_error: true
+            data:
+              entity_id: media_player.visio_tv
+              dashboard_path: "{{ states('input_text.porchlight_guest_dashboard_path') }}"
+              view_path: "{{ states('input_text.porchlight_guest_view_path') }}"
       - wait_template: >-
           {{ is_state('sensor.porchlight_guest_presentation', 'active') and
              state_attr('sensor.porchlight_guest_presentation', 'session_id') == session }}

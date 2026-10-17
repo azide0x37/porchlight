@@ -135,9 +135,34 @@ class HomeAssistantGuestContractTest(unittest.TestCase):
         self.assertNotIn("media_player.turn_off", actions)
         self.assertIn("cast.show_lovelace_view", actions)
         self.assertFalse(self.package["input_boolean"]["porchlight_guest_mode_requested"]["initial"])
-        self.assertFalse(self.package["input_boolean"]["porchlight_guest_ui_ready"]["initial"])
+        self.assertNotIn("initial", self.package["input_boolean"]["porchlight_guest_ui_ready"])
         self.assertNotIn("initial", self.package["input_boolean"]["porchlight_guest_mode_ready"])
+        for helper in ("porchlight_guest_dashboard_path", "porchlight_guest_view_path"):
+            self.assertNotIn("initial", self.package["input_text"][helper])
         self.assertEqual(self.package["input_text"]["porchlight_guest_tv_status"]["initial"], "off")
+
+    def test_display_adapter_cannot_bypass_commissioning_or_change_service(self):
+        sequence = self.package["script"]["porchlight_guest_present_on_tv"]["sequence"]
+        guard = next(step["if"] for step in sequence if "porchlight_guest_ui_ready" in step.get("if", ""))
+        for ready, adapter, dashboard, view, blocked in [
+            (False, True, "", "", True),
+            (False, False, "guest-screen", "guest", True),
+            (True, False, "", "guest", True),
+            (True, False, "https://example.test/", "guest", True),
+            (True, False, "guest-screen", "../settings", True),
+            (True, False, "guest-screen", "guest", False),
+            (True, True, "", "", False),
+        ]:
+            with self.subTest(ready=ready, adapter=adapter, dashboard=dashboard, view=view):
+                rendered = self.environment.from_string(guard).render(
+                    is_state=lambda entity, state: ready,
+                    states=lambda entity: dashboard if entity.endswith("dashboard_path") else view,
+                    has_service=lambda domain, service: adapter and (domain, service) == ("script", "porchlight_guest_open_display"),
+                )
+                self.assertEqual(rendered.strip(), str(blocked))
+        dispatch = next(step for step in sequence if "choose" in step)
+        self.assertEqual(dispatch["choose"][0]["sequence"][0]["action"], "script.porchlight_guest_open_display")
+        self.assertEqual(dispatch["default"][0]["action"], "cast.show_lovelace_view")
 
     def test_spotify_auto_selects_playing_before_paused_without_art_tokens(self):
         source = self.package["script"]["porchlight_guest_publish"]["sequence"][1]["data"]["payload"]
