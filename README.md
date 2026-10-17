@@ -120,6 +120,93 @@ outside private IPv4 space. It does not sweep the whole CIDR for ports; it scans
 the bounded set of hosts already observed through ARP, neighbor, gateway, or
 Tailscale evidence.
 
+## Infrastructure page
+
+The Infrastructure navigation entry (`#/infrastructure`) groups registered web services by host. It shows CPU, memory, disk, active alerts, HTTP reachability, application readiness, deployment state, and observation timestamps separately. Missing or expired observations show unknown/stale; a changed provider mapping clears old health, and only failures from the same source retain timestamped observations; a login page or HTTP 200 alone does not certify application readiness.
+
+Configure the administrator-owned registry at `/etc/porchlight/infrastructure.json` using `etc/infrastructure.json.example`. Include every service, including stopped ones; assign stable host/service IDs, LAN/Tailscale launch links, optional private probe URLs, and exact Beszel/Komodo names or IDs. Readiness probes require an expected response marker. Maintenance is an explicit overlay.
+
+Store integration URLs and existing scoped credentials in `/etc/porchlight/infrastructure.env` with mode 0600 (see its example). The web service polls Beszel's PocketBase `systems` and latest `system_stats` records and Komodo's read API for servers, stacks, and unresolved alerts. The browser reads only sanitized summaries from `GET /api/infrastructure`; no credential or arbitrary-probe API is exposed. Provider errors, ambiguous mappings, schema errors, and expired credentials yield unknown/stale observations without hiding the service inventory. TLS validation stays enabled, redirects are not followed, environment proxies are disabled, and probes require private/Tailscale resolved addresses. The observer runs under the existing systemd-owned web process at 30-second intervals by default (120-second freshness limit). Keep this page behind the existing trusted-network/authentication boundary.
+
+Local fixture validation does not satisfy live acceptance. Retain the tested commit, validation receipt, and deployment/rollback procedure before deploying. An independent monitor must observe Porchlight itself so an outage of its host is visible elsewhere.
+
+### Provider contract verification and remaining acceptance
+
+The October 7, 2026 follow-up uses Komodo's documented
+`POST /read/ListServers`, `/read/ListStacks`, and `/read/ListAlerts` paths,
+with operation parameters as the JSON body and `x-api-key` / `x-api-secret`
+headers. Alert queries use the JSON boolean `false`; host counts include only
+unresolved `Server` targets with the matching server ID. Beszel uses the raw
+PocketBase user token in `Authorization`, paginated `systems` reads, and the
+latest `system_stats` record filtered to `type="1m"`. Sample timestamps and
+`cpu`, `mp`, and `dp` metrics are preserved; a fresh historical rollup must not
+stand in for current telemetry. No provider login, credential refresh, provider
+write, or API fallback is attempted.
+
+Contract sources inspected (these are upstream revisions, **not installed
+versions**):
+
+- [Komodo TypeScript client](https://github.com/moghtech/komodo/blob/780ac68b992094a9fccd5fffb760e0c84fd3c3d1/client/core/ts/src/lib.ts)
+  and [server router](https://github.com/moghtech/komodo/blob/780ac68b992094a9fccd5fffb760e0c84fd3c3d1/bin/core/src/api/read/mod.rs).
+  The router accepts both the enveloped `/read/` form and operation paths.
+  The prior request is therefore not a demonstrated installed-version failure.
+- [Komodo alert parameters](https://github.com/moghtech/komodo/blob/780ac68b992094a9fccd5fffb760e0c84fd3c3d1/client/core/rs/src/api/read/alert.rs)
+  and [target serialization](https://github.com/moghtech/komodo/blob/780ac68b992094a9fccd5fffb760e0c84fd3c3d1/client/core/rs/src/entities/mod.rs).
+- [Beszel authorization tests](https://github.com/henrygd/beszel/blob/bc2278e7e9820825ce990fb2fe7fca4b9fe9a1c3/internal/hub/api_test.go),
+  [metric fields](https://github.com/henrygd/beszel/blob/bc2278e7e9820825ce990fb2fe7fca4b9fe9a1c3/internal/entities/system/system.go),
+  and [record schema](https://github.com/henrygd/beszel/blob/bc2278e7e9820825ce990fb2fe7fca4b9fe9a1c3/internal/migrations/0_collections_snapshot_0_20_0.go).
+
+`tests/test_infrastructure_contract.py` runs the production urllib transport
+against a strict local HTTP server. It verifies methods, paths, decoded query
+parameters, bodies, credential headers, pagination, typed unresolved alert
+counts, telemetry timestamps, 401/schema errors, cache expiry, redaction and
+redirect refusal. These tests supplement fixture mapping/frontend checks;
+they do not certify a real provider deployment.
+
+October 7 validation: `uv run python -m unittest discover -s tests -p
+'test_infrastructure*.py'` passes 26 tests. `make test` runs 69 tests with one
+failure in `test_staged_install_doctor_and_uninstall_preserve_config`:
+`AssertionError: 1 != 0 : FAIL mqtt publish adapter available`.
+The final result is `FAILED (failures=1)` and
+`make: *** [Makefile:11: test] Error 1`. `mosquitto_pub` is absent; installation
+was unavailable in this execution environment. The remaining tests pass.
+Standalone shell syntax validation passes; `make package` with an isolated
+`DIST` passes and leaves tracked 2.4.0 release assets unchanged. Rerun the full
+`make test` target on a host with its declared MQTT adapter before acceptance.
+
+This follow-up session had no deployment endpoint, usable SSH credentials or
+agent, Tailscale client, runtime command connector, or local
+`/etc/porchlight` configuration. Previous native deployment evidence remains
+as reported in PR #4; it was not repeated here. Before marking the PR ready
+or publishing 2.5.0, record the following from authorized runtime access:
+
+1. The target host, running Porchlight commit, Komodo Core version/image digest,
+   and Beszel Hub/agent versions. Use the installed Komodo's authenticated
+   read-only `GetVersion` operation and match its tagged source/router contract.
+2. Using existing scoped credentials server-side, verify the three Komodo read
+   operations and Beszel collection reads. Record only status codes, schema
+   compatibility and sanitized counts. Do not copy tokens, secrets, raw alerts,
+   or provider response dumps into logs, browser output or PR comments. Invalid
+   or expired credentials must remain error/unknown, not be treated as empty
+   successful inventories.
+3. Verify every registered Beszel system and Komodo server/stack ID or unique
+   name against the visible provider inventory. Verify stack `info.server_id`
+   agrees with its configured host's Komodo server, or document swarm placement
+   explicitly. Resolve missing/ambiguous mappings and verify fleet coverage,
+   including stopped services. Compare unresolved Server alert counts with the
+   provider UI and verify the latest 1m sample time/metrics.
+4. In an isolated observer using a temporary copy of the registry, with existing
+   credentials loaded only server-side, perform successful collection and then
+   simulate provider failures in that observer. Verify timestamps are retained
+   for unchanged mappings and become stale/unknown after the configured TTL;
+   verify changed/missing mappings clear old observations. Do not stop providers,
+   alter production credentials, or change existing services to induce failure.
+5. Retain sanitized desktop/mobile live acceptance receipts for mappings, alerts,
+   readiness versus HTTP reachability, maintenance and expiry. Verify an
+   independent monitor observes Porchlight itself. Any deployment of this fix
+   requires its own validated artifact and recorded prior release/rollback
+   procedure; preserve `/etc/porchlight` and existing services throughout.
+
 ## Dashboard
 
 `porchlight-web.service` serves the dashboard from
@@ -146,7 +233,113 @@ ports. HTTP/HTTPS services are linked directly from the dashboard, and
 Porchlight tries to use the root page `<title>` as the link text when the
 landing page is reachable.
 
+## Guest Screen
+
+`porchlight-guest.service` also serves the guest TV screen at `/guest/` on its
+own listener (`GUEST_WEB_HOST:GUEST_WEB_PORT`, default `127.0.0.1:8766`). Home
+Assistant opens `/guest/#t=<access_token>` through a fixed display script using
+DashCast, with an HA Cast webpage card as the fallback; the
+token travels in the URL fragment, never in a query string or log, and the page
+moves it into session storage and scrubs the address bar. The admin dashboard
+listener answers 404 for the guest surface and renders never copy it into
+`/var/lib/porchlight/www`.
+
+The screen is a 10-foot kiosk composition for a 16:9 TV: one CSS unit is 1% of
+the frame height, so 1280x720, 1920x1080, and 3840x2160 render the same layout
+inside a 5% overscan margin. It shows the guest Wi-Fi as a locally generated QR
+code (vendored `qrcode-generator`, MIT; byte mode, EC level M, about 60% of the
+screen height, drawn as light modules on the dark card by the household's choice) or, when Home Assistant is the source, a QR image proxied by the
+guest service from the same origin. By the household's choice the network name
+and password never appear on the TV; the screen shows the code alone. It also shows
+up to three Alexa examples each for lights, music, and blinds, and read-only
+climate cards with current temperature, setpoint or range, and action. Status
+chips omit the mode and separator dot to fit the three-room TV layout.
+Before the first presentation arrives, and for the moment after guest mode ends,
+it shows only the lamp and home name. Home Assistant opens this screen when Guest
+Mode is on. State changes, the
+moving voice highlight, and temperature updates animate through the View
+Transitions API; `@view-transition { navigation: auto }` crossfades same-origin
+navigations such as the nightly self-refresh; browsers without the API get the
+same DOM swap without animation, and `prefers-reduced-motion` disables it. The
+palette follows the time of day (morning, afternoon, evening, night).
+
+Native UniFi QR images are converted from bounded monochrome pixels into SVG
+geometry. The original modules and quiet zone are preserved without decoding the
+credentials. CSS colors the modules and background with the same light-on-dark
+palette as locally generated codes. Explicit SVG dimensions keep the code square
+on Cast browsers without CSS `aspect-ratio`. Rendered screenshots decode to the
+original synthetic payload in all four palettes.
+
+All of the screen's asset and API paths are relative, so the guest service can
+sit behind an HTTPS reverse proxy at the origin root or under a path prefix; the
+commissioned display adapter is the fixed HA script
+`script.porchlight_guest_open_display`, using DashCast. Without that hook, the
+package falls back to an HA Cast dashboard/view (see `docs/workstreams/notes/`).
+
+The screen fails closed: it polls `../api/guest` every five seconds, heartbeats
+after each render, and honors the backend's remaining freshness deadline (at
+most 45 seconds). At expiry it hides the QR, Spotify, and Jam, and blanks climate
+even if the backend is still running. A 401
+forgets the token and shows the neutral screen.
+
+The optional authenticated HA image proxy takes precedence over local Wi-Fi.
+Configure its HTTPS origin, access token, `image.botanical_qr_code`, and Botanical
+SSID under **Settings → Home Assistant Wi-Fi QR**. The token is kept in mode-0600
+`guest.env`. The receiver fetches only that image, refuses redirects, validates
+bounded PNG content, and serves it through the bearer-protected guest API while
+the same presentation is fresh and enabled. It refreshes every 15 seconds; the
+screen refreshes its image every 15 seconds. No HA image token URL or Wi-Fi
+password is published over MQTT. Local credentials remain an optional fallback.
+
+After renaming a UniFi network, verify the QR itself reflects the new SSID.
+[HA 2026.9.4 caches this image by passphrase](https://github.com/home-assistant/core/blob/2026.9.4/homeassistant/components/unifi/image.py),
+so an SSID-only rename may require reloading the UniFi integration. Keep the
+existing image entity ID when it still refers to the same WLAN, and update the
+SSID label in Porchlight Settings. That label does not alter the QR payload.
+The
+dashboard Settings view edits `/etc/porchlight/guest.json` (home name, fallback
+Wi-Fi name, security, password, hidden flag, welcome copy, voice phrases, climate
+allowlist, enable flag) through `/api/setup/guest`. The welcome line may contain `{home}`; the optional home name (for
+example "Botanical") fills it and also appears in the footer, the standby
+screen, and the window title. Every write is validated with the
+backend's own loader on a mode-0600 temp file before it replaces the live file,
+the response never echoes the password, a new access token is shown exactly
+once, and the allowlisted `restart_guest` setup action restarts the service.
+`PYTHONPATH=src uv run python -m porchlight.guest_web --preview` serves the screen
+with synthetic data for design review.
+
+The HA package auto-selects a playing Spotify integration player, or a paused one
+when none is playing. Allow its entity ID in Settings → Spotify players (for this
+tenant, `media_player.spotify_alexander_templeton`). The guest receiver validates
+the bounded title, artist, album, source, duration, and position; idle/unavailable
+players have no card. Artwork tokens are excluded from the snapshot.
+
+Album covers use the existing private HA connection and the fixed, authenticated
+media-player proxy for the allowlisted Spotify player. Porchlight checks track
+metadata before and after fetching a bounded PNG/JPEG, keeps it in memory, and
+serves it through the authenticated, no-store `../api/guest/spotify-art` endpoint.
+The screen clears artwork on track changes, session changes, stale data, and OFF.
+HA image URLs and tokens never reach the screen or MQTT.
+
+An optional authenticated `../api/guest/display` diagnostic reports the current
+presenter's bounded viewport, QR dimensions, overflow labels, browser version,
+and CSS support. It expires with the presenter heartbeat and contains no screen
+text, Wi-Fi payload, or URL.
+
+Spotify's public API and HA integration do not expose Jam invitations or whether
+a Jam is still open. Start Guest Mode, copy **Spotify → Jam → Invite → Share link**,
+and paste it into the dashboard's Jam field. Porchlight binds that host-supplied
+invite to the current session for at most four hours. Clear it when ending a Jam
+early. Playback alone never creates a Jam QR. Read/add queue APIs are available
+for a future guest request interface; this release adds no queue controls.
+
 ## Home Assistant MQTT Bridge
+
+Guest Mode now has an opt-in backend and a [Home Assistant package](homeassistant/porchlight_guest.yaml)
+for an Alexa-presentable switch, cancellable Vizio activation, limited HVAC
+snapshots, and presentation diagnostics. The TV screen is described under Guest Screen above. See the
+[backend API and commissioning handoff](docs/workstreams/guest-mode.md); the
+separate listener defaults to loopback and never serves administrator routes.
 
 The bridge exposes one Home Assistant device:
 
@@ -371,9 +564,9 @@ make package
 
 This writes:
 
-- `dist/porchlight-2.4.0/`
-- `dist/porchlight-2.4.0.tar.gz`
-- `dist/porchlight-2.4.0.tar.gz.sha256`
+- `dist/porchlight-2.5.0/`
+- `dist/porchlight-2.5.0.tar.gz`
+- `dist/porchlight-2.5.0.tar.gz.sha256`
 - `dist/install.sh`
 - `dist/manifest.json`
 
@@ -391,7 +584,7 @@ This writes:
 | scan irregularities are recorded | PASS | `src/porchlight/store.py`, `src/porchlight/render.py`, `tests/test_store_merge.py` |
 | static dashboard is rendered | PASS | `bin/install.sh` refreshes static web assets; the browser polls current JSON every minute and surfaces refresh failures |
 | AI analysis sidecar is opt-in and asynchronous | PASS | the hourly timer and versioned semantic fingerprint are regression-tested; scan timestamps and run history cannot trigger model calls, while host, endpoint, irregularity, model, and tier changes do; stale snapshots and upstream failures are explicit in JSON, logs, and exit status |
-| local web dashboard and setup API are systemd-owned | PASS | `src/porchlight-web`, `src/porchlight/web.py` no-store headers and `/api/setup/*`, `systemd/porchlight-web.service` |
+| local web dashboard and setup API are systemd-owned | PASS | `src/porchlight-web`, `src/porchlight/web.py` no-store headers and `/api/setup/*`, `systemd/porchlight-web.service`; installer enables the allowlisted setup-action path on every host so settings saves restart their services |
 | no-SSH appliance setup is optional | PASS | `bin/install.sh --appliance`, `bin/setup-ap.sh`, `bin/setup-apply.sh`, `systemd/porchlight-setup-ap.service`, `systemd/porchlight-setup-apply.path` |
 | appliance health is written | PASS | `src/porchlight-health`, `systemd/porchlight-health.timer`, and `tests/test_health.py` enforce scan freshness |
 | installer idempotent | PASS | `make test` runs staged install; installer only creates default config when missing |
@@ -401,5 +594,10 @@ This writes:
 | Python justified and run through `uv` | PASS | bridge uses Python for JSON/discovery payload generation; `make test` runs `uv run python -m unittest discover -s tests` |
 | MPL atoms documented | PASS | `muster.yaml`, `MUSTER.md`, and this README name the relevant MPL patterns including draft `T2R7.ai-analysis-sidecar` |
 | README self-certifies compliance | PASS | this table |
-| tests current | PASS | `make test` |
-| package and release assets current | PASS | `make package` writes `dist/install.sh`, `dist/manifest.json`, tarball, and SHA256 |
+| guest backend / `T2C5.local-sidecar-bridge` | PASS (backend); live MQTT verified | `porchlight-guest.service`, 16 KiB MQTT schema, 45-second expiry, authenticated restricted API, session acknowledgements, owner-only config and lifecycle tests; separate HA/guest broker accounts and a fresh OFF snapshot verified after deployment; guest screen ships on the same listener (next row) |
+| guest TV screen is restricted and fail-closed | PASS | `src/porchlight/guest_web.py` allowlists `/guest/` assets on the guest listener only; the admin listener returns 404 for `/guest*` and `/api/guest*`; the screen hides credentials after 45 s without a fresh poll; dashboard writes to `guest.json` are validated by `load_guest_config` and kept 0600; `tests/test_guest_screen.py` |
+| guest HA / Alexa / TV acceptance | PARTIAL | HA configuration check, idempotent ON, and OFF cancellation verified; Guest Screen naming is prepared, but the HA Cloud account has no subscription and manual Alexa setup is deferred by the owner; cold Vizio wake through DashCast reaches a matching active presenter heartbeat in 20.9 s; operator confirms the full screen; spoken Alexa and camera coexistence remain untested; see `docs/workstreams/notes/2026-10-17-backend-reply-to-fable.md` |
+| guest media and native image proxies | PASS (local); live HA source fetches verified | Spotify player allowlist, session-bound Jam expiry, authenticated QR and album-art endpoints, fixed HA paths, bounded raster validation, track-race rejection, no-store responses, stale/off rejection, secret masking and removal; QR geometry conversion preserves source pixels without decoding credentials; deployed v2.6.4 returns authenticated album covers; the renamed WLAN QR was verified on v2.6.3 and is unchanged; phone scan remains untested; `tests/test_guest_media.py`, `tests/test_guest_artwork.py`, `tests/test_guest_qr_image.py` |
+| tests current | PASS | `make test`: 126 backend, UI, and infrastructure tests plus shell checks and staged install/doctor; 11 HVAC template fixtures; three-room layouts and album covers fit at 1280×720 and 1920×1080; light-on-dark native QR screenshots decode in all four palettes; OFF removes both QR and artwork; bounded display diagnostics and track-race checks pass; the actual Chrome 84 TV reports a 448×448 QR and zero page/card overflow on v2.6.4; the requested short welcome is live and Spotify caption lines fit in both preview sizes |
+| package builds | PASS | `make package` produces v2.6.4 with the SVG QR helper, palette and layout refinements, reserved Spotify captions, short welcome copy, album-art proxy, display diagnostics, preserved infrastructure features, HA package, docs, and tests; GitHub release publication remains separate |
+| infrastructure health is scoped and freshness-aware | PASS (local); provider acceptance pending | 26 infrastructure tests pass in the 126-test combined suite, including HTTP transport contracts; existing provider configuration is preserved. Authenticated full-fleet acceptance remains separate. |

@@ -14,3 +14,9 @@ When adding scanner services, feed the existing state surfaces first:
 - `/run/porchlight/status.json`
 - `/run/muster/status.json`
 - `/var/lib/porchlight/www/*.json`
+
+Cross-agent notes:
+
+- Before continuing guest-mode work, read
+  `docs/workstreams/notes/2026-10-17-guest-screen-handoff-to-codex.md` (asks from
+  the guest TV screen: HA HVAC payload fixtures, display adapter, docs alignment).

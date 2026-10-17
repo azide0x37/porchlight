@@ -4,12 +4,15 @@ import argparse
 import json
 import os
 import subprocess
+import time
 from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from .config import load_config
+from .guest_settings import bind_jam_invite, masked_guest_settings, update_guest_ha_settings, update_guest_settings
+from .infrastructure import InfrastructureMonitor
 from .settings import (
     masked_openai_settings,
     masked_mqtt_settings,
@@ -37,8 +40,16 @@ class PorchlightHTTPRequestHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self) -> None:
-        if self.path.split("?", 1)[0] == "/api/setup/status":
+        path = self.path.split("?", 1)[0]
+        if path == "/api/infrastructure":
+            self.write_json(self.server.infrastructure.snapshot())
+            return
+        if path == "/api/setup/status":
             self.write_json(self.server.setup_payload())
+            return
+        if path == "/guest" or path.startswith("/guest/") or path.startswith("/api/guest"):
+            # The TV screen and its token-gated data live only on the porchlight-guest listener.
+            self.send_error(HTTPStatus.NOT_FOUND, "guest surface is served by porchlight-guest")
             return
         super().do_GET()
 
@@ -55,6 +66,15 @@ class PorchlightHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.write_json({"openai": self.server.openai_payload(settings)})
             elif path == "/api/setup/openai/analyze":
                 self.write_json(self.server.trigger_ai_analysis())
+            elif path == "/api/setup/guest":
+                payload = bind_jam_invite(payload, self.server.guest_receiver_status(), time.time())
+                settings = update_guest_settings(self.server.config.config_dir, payload)
+                self.server.request_apply("restart_guest")
+                self.write_json({"guest": self.server.guest_payload(settings)})
+            elif path == "/api/setup/guest-ha":
+                settings = update_guest_ha_settings(self.server.config.config_dir, payload)
+                self.server.request_apply("restart_guest")
+                self.write_json({"guest": self.server.guest_payload(settings)})
             elif path == "/api/setup/mqtt/test":
                 self.write_json(self.server.test_mqtt(payload))
             elif path == "/api/setup/wifi":
@@ -96,10 +116,14 @@ class PorchlightHTTPRequestHandler(SimpleHTTPRequestHandler):
 
 
 class PorchlightHTTPServer(ThreadingHTTPServer):
+    # A dashboard refresh opens several simultaneous API/static requests.
+    request_queue_size = 32
+
     def __init__(self, server_address, handler, config, apply: bool):
         super().__init__(server_address, handler)
         self.config = config
         self.apply = apply
+        self.infrastructure = InfrastructureMonitor(config.config_dir)
 
     def setup_payload(self) -> dict[str, object]:
         return {
@@ -107,6 +131,31 @@ class PorchlightHTTPServer(ThreadingHTTPServer):
             "mqtt": masked_mqtt_settings(self.config.config_dir),
             "openai": self.openai_payload(),
             "wifi": self.wifi_payload(),
+            "guest": self.guest_payload(),
+        }
+
+    def guest_payload(self, settings: dict[str, object] | None = None) -> dict[str, object]:
+        """Masked guest screen settings plus the receiver's diagnostic status; never content or secrets."""
+        payload = dict(settings or masked_guest_settings(self.config.config_dir))
+        payload["receiver"] = self.guest_receiver_status()
+        return payload
+
+    def guest_receiver_status(self) -> dict[str, object]:
+        path = self.config.state_dir / "guest" / "status.json"
+        if not path.is_file():
+            return {"status": "stopped", "enabled": False, "fresh": False, "error": None}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {"status": "unreadable", "enabled": False, "fresh": False, "error": None}
+        return {
+            "status": str(data.get("status", "unknown")),
+            "enabled": bool(data.get("enabled", False)),
+            "fresh": bool(data.get("fresh", False)),
+            "error": data.get("error"),
+            "generated_at": data.get("generated_at"),
+            "session_id": data.get("session_id"),
+            "rejected_messages": data.get("rejected_messages"),
         }
 
     def openai_payload(self, settings: dict[str, object] | None = None) -> dict[str, object]:
@@ -207,7 +256,7 @@ class PorchlightHTTPServer(ThreadingHTTPServer):
         return {"ok": True, "setup": setup_status(self.config.config_dir)}
 
     def request_apply(self, action: str) -> None:
-        if action not in {"restart_bridge", "shutdown_setup_ap"}:
+        if action not in {"restart_bridge", "shutdown_setup_ap", "restart_guest"}:
             raise ValueError("unsupported setup action")
         self.write_runtime_request(action)
 
@@ -229,5 +278,10 @@ def main() -> int:
     port = int(os.environ.get("PORCHLIGHT_WEB_PORT", "8765"))
     handler = partial(PorchlightHTTPRequestHandler, directory=str(config.www_dir))
     server = PorchlightHTTPServer((host, port), handler, config, args.apply)
-    server.serve_forever()
+    server.infrastructure.start()
+    try:
+        server.serve_forever()
+    finally:
+        server.infrastructure.stop()
+        server.server_close()
     return 0

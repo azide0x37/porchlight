@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "generated_at": "2026-10-17T18:00:00+00:00",
+  "session_id": "fixture-session",
+  "hvac": [
+    {
+      "id": "climate.living_room_thermostat",
+      "label": "Living room",
+      "available": true,
+      "current_temperature": null,
+      "target_temperature": 71.0,
+      "target_temperature_low": 68.0,
+      "target_temperature_high": 74.0,
+      "unit": "°F",
+      "mode": "heat_cool",
+      "action": "idle"
+    },
+    {
+      "id": "climate.bedroom_ac",
+      "label": "Bedroom",
+      "available": true,
+      "current_temperature": null,
+      "target_temperature": 71.0,
+      "target_temperature_low": 68.0,
+      "target_temperature_high": 74.0,
+      "unit": "°F",
+      "mode": "heat_cool",
+      "action": "idle"
+    },
+    {
+      "id": "climate.kitchen_ac",
+      "label": "Kitchen",
+      "available": true,
+      "current_temperature": null,
+      "target_temperature": 71.0,
+      "target_temperature_low": 68.0,
+      "target_temperature_high": 74.0,
+      "unit": "°F",
+      "mode": "heat_cool",
+      "action": "idle"
+    }
+  ]
+}

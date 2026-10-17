@@ -14,13 +14,14 @@ prefix_path() {
 }
 
 if [ -z "$ROOT" ] && command -v systemctl >/dev/null 2>&1; then
-  systemctl disable --now porchlight-discover.timer porchlight-scan.timer porchlight-deep-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer porchlight-ai-analysis.timer porchlight-setup-apply.path porchlight-setup-ap.service porchlight-web.service || true
-  systemctl stop porchlight-scan.service porchlight-discover.service porchlight-deep-scan.service porchlight-render.service porchlight-health.service porchlight-ha-mqtt-bridge.service porchlight-ai-analysis.service porchlight-setup-apply.service porchlight-web.service || true
+  systemctl disable --now porchlight-guest.service porchlight-discover.timer porchlight-scan.timer porchlight-deep-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer porchlight-ai-analysis.timer porchlight-setup-apply.path porchlight-setup-ap.service porchlight-web.service || true
+  systemctl stop porchlight-guest.service porchlight-scan.service porchlight-discover.service porchlight-deep-scan.service porchlight-render.service porchlight-health.service porchlight-ha-mqtt-bridge.service porchlight-ai-analysis.service porchlight-setup-apply.service porchlight-web.service || true
   rm -f /etc/systemd/system/porchlight-*.service
   rm -f /etc/systemd/system/porchlight-*.timer
   rm -f /etc/systemd/system/porchlight-*.path
   systemctl daemon-reload
 else
+  rm -f "$(prefix_path "/etc/systemd/system/porchlight-guest.service")"
   rm -f "$(prefix_path "/etc/systemd/system/porchlight-ha-mqtt-bridge.service")"
   rm -f "$(prefix_path "/etc/systemd/system/porchlight-ha-mqtt-bridge.timer")"
   rm -f "$(prefix_path "/etc/systemd/system/porchlight-ai-analysis.service")"

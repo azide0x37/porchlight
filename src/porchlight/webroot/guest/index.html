@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-screen="boot">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17120f">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="Porchlight guest screen: Wi-Fi, voice tips, and comfort at a glance.">
+  <title>Porchlight - Hosting Guests</title>
+  <link rel="preload" href="../fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="../fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="../fonts/jetbrains-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" href="../icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./guest.css?v=2.6.4">
+  <script src="./arrive.js?v=2.6.4"></script>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true">
+    <span class="glow glow-a"></span>
+    <span class="glow glow-b"></span>
+    <span class="grain"></span>
+  </div>
+  <main id="stage" class="stage" aria-live="polite">
+    <section class="neutral" data-view="boot">
+      <div class="lamp"><img src="../icon-round.png" alt=""></div>
+      <p class="wordmark">Porchlight</p>
+    </section>
+  </main>
+  <noscript><p class="noscript">This screen needs JavaScript to show live guest details.</p></noscript>
+  <script src="./vendor/qrcode-generator.js?v=2.6.4"></script>
+  <script src="./qr-image.js?v=2.6.4"></script>
+  <script src="./guest.js?v=2.6.4"></script>
+</body>
+</html>

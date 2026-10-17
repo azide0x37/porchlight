@@ -5,6 +5,7 @@ const state = {
   changes: { recent_runs: [] },
   analysis: { status: "missing" },
   snapshot: {},
+  infrastructure: {},
   query: "",
   statusFilter: "all",
   groupBy: "subnet",
@@ -12,7 +13,7 @@ const state = {
   suppressHashRender: false,
   refreshError: "",
   setupLoaded: false,
-  setupStatus: { setup: {}, mqtt: {}, openai: {}, wifi: {} },
+  setupStatus: { setup: {}, mqtt: {}, openai: {}, wifi: {}, guest: {} },
 };
 
 const themeModes = ["light", "system", "dark"];
@@ -169,6 +170,10 @@ async function json(path) {
 }
 
 async function load({ includeSetup = true } = {}) {
+  // Infrastructure observations must remain available when scanner data is missing.
+  state.infrastructure = await json("/api/infrastructure").catch(() => ({
+    ...state.infrastructure, collector_stale: true, collector_error: "Health observations unavailable",
+  }));
   const setupRequest = includeSetup
     ? json("/api/setup/status")
     : Promise.resolve(state.setupStatus);
@@ -876,6 +881,9 @@ function renderSettings() {
   const mqtt = state.setupStatus.mqtt || {};
   const openai = state.setupStatus.openai || {};
   const wifi = state.setupStatus.wifi || {};
+  const guest = state.setupStatus.guest || {};
+  const guestWifi = guest.wifi || {};
+  const guestAlexa = guest.alexa || {};
   const setupMode = setup.appliance_mode && !setup.setup_complete;
   const networks = Array.isArray(wifi.networks) ? wifi.networks : [];
   const wifiNetworkOptions = networks
@@ -907,6 +915,7 @@ function renderSettings() {
         ${stat("AI status", openai.analysis_status?.status || state.analysis.status || "missing", openai.model || "gpt-5-mini", "var(--porch-amber)")}
         ${stat("Wi-Fi", wifi.connected ? "Connected" : "Not connected", wifi.ssid || wifi.message || "setup AP available", "var(--porch-leaf)")}
         ${stat("Address", setup.mdns_name || "porchlight.local", setup.setup_ssid || "local dashboard", "var(--porch-clay)")}
+        ${stat("Guest screen", guestStatusLabel(guest), guest.wifi?.ssid ? `Wi-Fi: ${guest.wifi.ssid}` : "no guest Wi-Fi yet", "var(--porch-amber)")}
       </div>
     </section>`;
   return `<div class="stack">
@@ -932,6 +941,47 @@ function renderSettings() {
       </form>
     </section>
     <section class="section">
+      ${sectionHead("Hosting Guests", "TV screen")}
+      <form class="settings-form" id="guest-settings">
+        <p class="form-note">Home Assistant can send the guest Wi-Fi along with its presentation; when it does, those details take precedence on the TV and the Wi-Fi fields below are only the fallback.</p>
+        <label><span>Enable guest screen</span><input type="checkbox" name="enabled" ${guest.enabled ? "checked" : ""}></label>
+        <label><span>Home name</span><input name="home_name" value="${escapeHtml(guest.home_name || "")}" maxlength="60" autocomplete="off" placeholder="Botanical"></label>
+        <label><span>Welcome line</span><input name="welcome" value="${escapeHtml(guest.welcome || "")}" maxlength="200" autocomplete="off" placeholder="Welcome to {home}" title="{home} is replaced with the home name"></label>
+        <label><span>Fallback Wi-Fi name</span><input name="ssid" value="${escapeHtml(guestWifi.ssid || "")}" maxlength="32" autocomplete="off" placeholder="Leave blank to rely on Home Assistant"></label>
+        <label><span>Security</span><select name="security">
+          <option value="WPA" ${guestWifi.security !== "nopass" ? "selected" : ""}>WPA2 / WPA3 password</option>
+          <option value="nopass" ${guestWifi.security === "nopass" ? "selected" : ""}>Open network</option>
+        </select></label>
+        <label><span>Fallback Wi-Fi password</span><input name="password" type="password" placeholder="${guestWifi.password_set ? "Stored - leave blank to keep" : "8-63 characters"}" autocomplete="new-password"></label>
+        <label><span>Hidden network</span><input type="checkbox" name="hidden" ${guestWifi.hidden ? "checked" : ""}></label>
+        <label><span>Lights phrases</span><textarea name="alexa_lights" rows="3" placeholder="One phrase per line, up to three">${escapeHtml((guestAlexa.lights || []).join("\n"))}</textarea></label>
+        <label><span>Music phrases</span><textarea name="alexa_music" rows="3" placeholder="One phrase per line, up to three">${escapeHtml((guestAlexa.music || []).join("\n"))}</textarea></label>
+        <label><span>Blinds phrases</span><textarea name="alexa_blinds" rows="3" placeholder="Alexa, close blind 50%.">${escapeHtml((guestAlexa.blinds || []).join("\n"))}</textarea></label>
+        <label><span>Climate entities</span><input name="allowed_climate_entities" value="${escapeHtml((guest.allowed_climate_entities || []).join(", "))}" placeholder="climate.guest_room, climate.living_room" autocomplete="off"></label>
+        <label><span>Spotify players</span><input name="allowed_spotify_entities" value="${escapeHtml((guest.allowed_spotify_entities || []).join(", "))}" placeholder="media_player.spotify_account" autocomplete="off"></label>
+        <label><span>Jam invite for this visit</span><input name="spotify_jam_url" type="url" maxlength="255" placeholder="${guest.spotify_jam_set ? "Stored — blank keeps it" : "Paste Spotify → Jam → Invite link"}" autocomplete="off"></label>
+        <label><span>Remove Jam invite</span><input name="clear_spotify_jam" type="checkbox"></label>
+        <p class="form-note">Start Guest Mode before adding an invite. The Jam code lasts up to four hours and is hidden when this visit ends. Spotify does not report whether a Jam is still open; remove the invite if you end it early.</p>
+        <p class="form-result" role="status">${escapeHtml(guestStatusText(guest))}</p>
+        <div class="form-actions">
+          <button type="submit">Save guest screen</button>
+          <button type="button" data-action="rotate-guest-link">New access link</button>
+        </div>
+        <p class="form-result" id="guest-result" role="status"></p>
+      </form>
+      <form class="settings-form" id="guest-ha-settings">
+        <h3>Home Assistant Wi-Fi QR</h3>
+        <p class="form-note">Use the native UniFi QR image. The HA token stays on this server; the TV receives only the code while Guest Mode is active.</p>
+        <label><span>Home Assistant HTTPS address</span><input name="url" type="url" value="${escapeHtml(guest.ha?.url || "")}" placeholder="https://ha.example.com" autocomplete="off"></label>
+        <label><span>Home Assistant access token</span><input name="token" type="password" placeholder="${guest.ha?.token_set ? "Stored — blank keeps it" : "Paste a long-lived access token"}" autocomplete="off"></label>
+        <label><span>QR image entity</span><input name="wifi_qr_entity" value="${escapeHtml(guest.ha?.wifi_qr_entity || "")}" placeholder="image.botanical_qr_code" autocomplete="off"></label>
+        <label><span>Wi-Fi name</span><input name="wifi_ssid" value="${escapeHtml(guest.ha?.wifi_ssid || "")}" maxlength="32" placeholder="Botanical" autocomplete="off"></label>
+        <label><span>Disconnect Home Assistant QR</span><input name="clear_token" type="checkbox"></label>
+        <button type="submit">Save HA connection</button>
+        <p class="form-result" id="guest-ha-result" role="status"></p>
+      </form>
+    </section>
+    <section class="section">
       ${sectionHead("OpenAI", "AI analysis")}
       <form class="settings-form" id="openai-settings">
         <label><span>Enable AI analysis</span><input type="checkbox" name="analysis_enabled" ${openai.analysis_enabled ? "checked" : ""}></label>
@@ -952,6 +1002,63 @@ function renderSettings() {
   </div>`;
 }
 
+function guestStatusLabel(guest) {
+  if (!guest || !guest.configured) return "Not set up";
+  if (!guest.enabled) return "Disabled";
+  const receiver = guest.receiver || {};
+  const labels = { active: "On the TV", starting: "Starting", degraded: "Degraded", off: "Off", unavailable: "Unavailable", stopped: "Stopped" };
+  return labels[receiver.status] || receiver.status || "Unknown";
+}
+
+function guestStatusText(guest) {
+  if (!guest || !guest.configured) return "Saving creates /etc/porchlight/guest.json (owner-only). The TV screen shows the guest Wi-Fi as a QR code (Home Assistant's details first, these as fallback), voice examples, and read-only climate.";
+  if (!guest.enabled) return "The guest screen is disabled. Enable it, save, and issue an access link for the Home Assistant automation.";
+  const receiver = guest.receiver || {};
+  if (receiver.status === "stopped") return "porchlight-guest is not running or has not written a status yet.";
+  if (receiver.status === "active") return "Guest mode is on and the TV screen is heartbeating.";
+  if (receiver.status === "starting") return "Guest mode is on; waiting for the TV screen's first heartbeat.";
+  if (receiver.status === "degraded") return "Guest mode is on but the TV screen has stopped heartbeating.";
+  if (receiver.status === "off") return "Guest mode is off. The TV shows its neutral screen.";
+  if (receiver.status === "unavailable") return `Home Assistant's guest presentation is unavailable${receiver.error ? ` (${receiver.error})` : ""}.`;
+  return `Guest receiver status: ${receiver.status || "unknown"}.`;
+}
+
+function guestPayload(form) {
+  const lines = (name) => String(form.elements[name].value || "").split("\n").map((line) => line.trim()).filter(Boolean);
+  const payload = {
+    enabled: form.elements.enabled.checked,
+    home_name: form.elements.home_name.value,
+    welcome: form.elements.welcome.value,
+    ssid: form.elements.ssid.value,
+    security: form.elements.security.value,
+    hidden: form.elements.hidden.checked,
+    alexa: { lights: lines("alexa_lights"), music: lines("alexa_music"), blinds: lines("alexa_blinds") },
+    allowed_climate_entities: form.elements.allowed_climate_entities.value,
+    allowed_spotify_entities: form.elements.allowed_spotify_entities.value.split(/[\s,]+/).filter(Boolean),
+  };
+  if (form.elements.password.value) payload.password = form.elements.password.value;
+  if (form.elements.clear_spotify_jam.checked) payload.spotify_jam_url = "";
+  else if (form.elements.spotify_jam_url.value.trim()) payload.spotify_jam_url = form.elements.spotify_jam_url.value.trim();
+  return payload;
+}
+
+function applyGuestResult(data, message) {
+  const guest = data.guest || {};
+  const token = guest.access_token_once;
+  delete guest.access_token_once;
+  state.setupStatus.guest = guest;
+  render({ focus: false });
+  if (!token) {
+    setResult("#guest-result", message);
+    return;
+  }
+  const host = window.location.hostname || "porchlight.local";
+  const link = `http://${host}:${guest.guest_port || 8766}/guest/#t=${token}`;
+  const loopback = !guest.guest_host || guest.guest_host === "127.0.0.1" || guest.guest_host === "localhost";
+  const reach = loopback ? " The guest listener is local only. Configure an HTTPS reverse proxy to it, then use that HTTPS URL with this token fragment in the HA Cast dashboard." : "";
+  setResult("#guest-result", `${message} Paste this link into the Home Assistant guest automation now; it is shown only once: ${link}${reach}`);
+}
+
 function empty(message) {
   return `<div class="route-empty"><p class="muted">${escapeHtml(message)}</p></div>`;
 }
@@ -960,6 +1067,78 @@ function notFound(message) {
   return `<section class="route-empty"><h1>${escapeHtml(message)}</h1><p><a href="${href("/")}">Return to overview</a></p></section>`;
 }
 
+function infrastructureFresh(value, ttl) {
+  const age = (Date.now() - Date.parse(value || "")) / 1000;
+  return Number.isFinite(age) && age >= -5 && age <= ttl;
+}
+
+function infrastructureLink(link) {
+  try {
+    const url = new URL(link.url);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return "";
+    return '<a href="' + escapeHtml(url.href) + '" target="_blank" rel="noreferrer noopener">' + escapeHtml(link.label || "Open") + '</a>';
+  } catch (_error) { return ""; }
+}
+
+function infrastructureBadge(status) {
+  const tone = ["healthy", "up", "reachable"].includes(status) ? "good"
+    : ["down", "degraded", "unreachable"].includes(status) ? "bad" : "neutral";
+  return '<span class="infra-badge ' + tone + '">' + escapeHtml(status || "unknown") + '</span>';
+}
+
+function renderInfrastructure() {
+  const data = state.infrastructure || {};
+  const hosts = data.hosts || [];
+  const services = data.services || [];
+  const ttl = data.stale_seconds || 120;
+  const stale = data.collector_stale || !infrastructureFresh(data.generated_at, ttl);
+  const metric = (value, fresh) => fresh && Number.isFinite(value) ? value.toFixed(1) + "%" : "—";
+  const observed = (date) => date ? escapeHtml(new Date(date).toLocaleString()) : "No observation";
+  const providers = Object.entries(data.providers || {}).map(([name, provider]) =>
+    '<span>' + escapeHtml(name === "beszel" ? "Host monitoring" : "Deployment monitoring") + ': ' +
+    infrastructureBadge(provider.status === "ok" && infrastructureFresh(provider.observed_at, ttl) ? "connected" : provider.status || "unknown") + '</span>'
+  ).join(" ");
+  let content = '<section class="route-heading"><h1>Infrastructure</h1><p>Local services and the hosts they depend on.</p></section>';
+  content += '<p class="muted">' + hosts.length + ' hosts · ' + services.length + ' services · Observer: ' + escapeHtml(data.probe_origin || "unknown") + '</p>';
+  content += '<div class="infra-providers">' + providers + '</div>';
+  if (stale || data.collector_error) content += '<section class="infra-notice" role="status"><p>Health observations are unavailable or stale. Last collection: ' + observed(data.generated_at) + '.</p></section>';
+  if (!hosts.length) return content + empty("The infrastructure inventory is not configured yet.");
+  content += '<div class="infra-hosts">';
+  for (const host of hosts) {
+    const telemetry = host.telemetry || {};
+    const management = host.management || {};
+    const freshTelemetry = !stale && !host.telemetry_stale && infrastructureFresh(telemetry.observed_at, ttl);
+    const freshManagement = !stale && !host.management_stale && infrastructureFresh(management.observed_at, ttl);
+    const freshTelemetryStatus = !stale && infrastructureFresh(telemetry.status_observed_at, ttl);
+    const status = host.maintenance ? "maintenance" : freshManagement ? management.status || "unknown"
+      : freshTelemetryStatus ? telemetry.status || "unknown" : "unknown";
+    const metrics = telemetry.metrics || {};
+    content += '<section class="infra-host" id="infra-' + escapeHtml(host.id) + '"><div class="infra-title"><h2>' + escapeHtml(host.name) + '</h2>' + infrastructureBadge(status) + '</div>';
+    content += '<dl class="infra-metrics"><div><dt>CPU</dt><dd>' + metric(metrics.cpu_pct, freshTelemetry) + '</dd></div><div><dt>Memory</dt><dd>' + metric(metrics.memory_pct, freshTelemetry) + '</dd></div><div><dt>Disk</dt><dd>' + metric(metrics.disk_pct, freshTelemetry) + '</dd></div><div><dt>Active alerts</dt><dd>' + (freshManagement && Number.isInteger(management.active_alerts) ? management.active_alerts : "—") + '</dd></div></dl>';
+    content += '<p class="small">Host telemetry: ' + (freshTelemetry ? "fresh" : "stale / unknown") + ' · ' + observed(telemetry.observed_at) + '</p>';
+    content += '<p class="small">Management: ' + (freshManagement ? escapeHtml(management.status || "unknown") : "stale / unknown") + ' · ' + observed(management.observed_at) + '</p>';
+    content += '<div class="infra-links">' + (host.links || []).map(infrastructureLink).join(" ") + '</div>';
+    const hosted = services.filter((service) => service.host === host.id);
+    content += '<div class="infra-services">';
+    for (const service of hosted) {
+      const freshProbe = !stale && !service.stale && infrastructureFresh(service.checked_at, ttl);
+      const health = service.maintenance ? "maintenance" : freshProbe ? service.health : "unknown";
+      const reachability = freshProbe ? service.reachability : "unknown";
+      const deployment = service.deployment || {};
+      const freshDeployment = !stale && !service.deployment_stale && infrastructureFresh(deployment.observed_at, ttl);
+      content += '<article class="infra-service"><div class="infra-title"><h3>' + escapeHtml(service.name) + '</h3>' + infrastructureBadge(health) + '</div><p>' + escapeHtml(service.purpose || "") + '</p>';
+      content += '<p class="small">HTTP: ' + infrastructureBadge(reachability) + (service.http_status && freshProbe ? ' · ' + escapeHtml(service.http_status) : "") + '</p>';
+      content += '<p class="small">' + escapeHtml(freshProbe ? service.message : "Observation is stale or unavailable") + '</p>';
+      content += '<p class="small">Checked: ' + observed(service.checked_at) + ' · Last response: ' + observed(service.last_success_at || service.observed_at) + '</p>';
+      content += '<p class="small">Deployment: ' + (freshDeployment ? escapeHtml(deployment.state || "unknown") : "unknown") + ' · ' + observed(deployment.observed_at) + '</p>';
+      content += '<div class="infra-links">' + (service.links || []).map(infrastructureLink).join(" ") + '</div></article>';
+    }
+    content += (hosted.length ? "" : '<p class="muted">No web services are registered for this host.</p>') + '</div></section>';
+  }
+  return content + '</div>';
+}
+
+
 function render({ focus = true } = {}) {
   activeNav();
   const path = route();
@@ -967,6 +1146,7 @@ function render({ focus = true } = {}) {
   const app = document.querySelector("#app");
   let content;
   if (path === "/") content = renderOverview();
+  else if (path === "/infrastructure") content = renderInfrastructure();
   else if (path === "/hosts") content = renderHosts();
   else if (path.startsWith("/hosts/")) content = renderHostDetail(decodeURIComponent(path.slice("/hosts/".length)));
   else if (path === "/protocols") content = renderProtocols();
@@ -976,7 +1156,7 @@ function render({ focus = true } = {}) {
   else if (path === "/settings") content = renderSettings();
   else content = notFound("Page not found.");
   const refreshNotice = state.refreshError
-    ? `<section class="error"><p>${escapeHtml(state.refreshError)}</p></section>`
+    ? `<section class="infra-notice" role="status"><p>${escapeHtml(state.refreshError)}</p></section>`
     : "";
   app.innerHTML = refreshNotice + content;
   bindControls();
@@ -1122,6 +1302,37 @@ function bindSettings() {
       setResult("#openai-result", error.message, false);
     }
   });
+  const guestForm = document.querySelector("#guest-settings");
+  const guestHaForm = document.querySelector("#guest-ha-settings");
+  if (guestHaForm) guestHaForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      const form = guestHaForm.elements;
+      const data = await postJson("/api/setup/guest-ha", { url: form.url.value, token: form.token.value,
+        wifi_qr_entity: form.wifi_qr_entity.value, wifi_ssid: form.wifi_ssid.value, clear_token: form.clear_token.checked });
+      applyGuestResult(data, "Home Assistant QR settings saved; guest service is restarting.");
+    } catch (error) { setResult("#guest-ha-result", error.message, false); }
+  });
+  if (guestForm) {
+    guestForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setResult("#guest-result", "Saving guest screen settings...");
+      try {
+        const data = await postJson("/api/setup/guest", guestPayload(guestForm));
+        applyGuestResult(data, "Guest screen settings saved; porchlight-guest is restarting.");
+      } catch (error) {
+        setResult("#guest-result", error.message, false);
+      }
+    });
+  }
+  document.querySelector("[data-action='rotate-guest-link']")?.addEventListener("click", async () => {
+    try {
+      const data = await postJson("/api/setup/guest", { rotate_token: true });
+      applyGuestResult(data, "New access link issued; the old link stops working when porchlight-guest restarts.");
+    } catch (error) {
+      setResult("#guest-result", error.message, false);
+    }
+  });
   const wifi = document.querySelector("#wifi-settings");
   if (wifi) {
     wifi.addEventListener("submit", async (event) => {
@@ -1160,11 +1371,16 @@ load({ includeSetup: route() === "/settings" })
     bindChrome();
     render();
     window.setInterval(refresh, 60000);
+    window.setInterval(() => { if (route() === "/infrastructure") refresh(); }, 30000);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) refresh();
     });
   })
   .catch((error) => {
-    document.querySelector("#app").innerHTML = `<section class="error"><h1>Dashboard could not load.</h1><p>${escapeHtml(error.message)}</p></section>`;
+    state.refreshError = `Scanner dashboard could not load: ${error.message}`;
+    bindChrome();
+    if (route() === "/infrastructure") render();
+    else document.querySelector("#app").innerHTML = `<section class="error"><h1>Dashboard could not load.</h1><p>${escapeHtml(error.message)}</p></section>`;
+    window.setInterval(refresh, 30000);
   });

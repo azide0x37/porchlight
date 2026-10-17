@@ -52,6 +52,19 @@ patterns:
         - systemd/porchlight-ha-mqtt-bridge.service
         - systemd/porchlight-ha-mqtt-bridge.timer
         - etc/porchlight.mqtt.env.example
+    guest_sidecar:
+      atom: T2C5.local-sidecar-bridge
+      evidence:
+        - src/porchlight/guest.py
+        - src/porchlight/guest_mqtt.py
+        - systemd/porchlight-guest.service
+        - homeassistant/porchlight_guest.yaml
+        - tests/test_guest.py
+        - tests/test_guest_homeassistant.py
+        - src/porchlight/guest_web.py
+        - src/porchlight/guest_settings.py
+        - src/porchlight/webroot/guest
+        - tests/test_guest_screen.py
     ai_analysis_sidecar:
       atom: T2R7.ai-analysis-sidecar
       status: draft MPL pattern
@@ -125,6 +138,7 @@ controls:
       payloads: [PRESS]
       action: systemctl restart porchlight-web.service porchlight-health.service
 services:
+  - porchlight-guest.service
   - porchlight-web.service
   - porchlight-discover.service
   - porchlight-scan.service
@@ -175,7 +189,7 @@ compliance:
     doctor: bin/doctor.sh
     render_units: bin/render-units.sh
   generated_artifacts:
-    - dist/porchlight-2.4.0
-    - dist/porchlight-2.4.0.tar.gz
-    - dist/porchlight-2.4.0.tar.gz.sha256
+    - dist/porchlight-2.6.4
+    - dist/porchlight-2.6.4.tar.gz
+    - dist/porchlight-2.6.4.tar.gz.sha256
     - dist/manifest.json

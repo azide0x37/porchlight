@@ -31,7 +31,7 @@ The closest Muster Pattern Library vocabulary is:
 - `C5.failure-ratchet`: rejected controls and failed publish attempts leave inspectable state.
 - `C6.lifecycle-capsule`: install, update, uninstall, and doctor scripts.
 - `R4.state-ledger`: SQLite and JSON state are the source of truth for presentation.
-- `T2C5.local-sidecar-bridge`: `/run` and `/var/lib/porchlight/www` snapshots feed presentation surfaces.
+- `T2C5.local-sidecar-bridge`: the optional `porchlight-guest.service` receives allowlisted guest snapshots and serves a separate authenticated API; `/run` and `/var/lib/porchlight/www` snapshots feed presentation surfaces.
 - `T2C3.scheduled-herald`: repeated state publishing through systemd timer.
 
 ## Contract Status
@@ -58,3 +58,5 @@ The closest Muster Pattern Library vocabulary is:
 - `bin/uninstall.sh` stops units and removes installed code while preserving config unless called with `--purge`.
 - Python is used for structured JSON and MQTT payload generation, and tests run through `uv`.
 - `README.md` self-certifies compliance with command evidence.
+
+Guest mode uses `/etc/porchlight/guest.json` and `guest.env` (0600), ephemeral in-memory presentation state, and atomic sanitized `/run/porchlight/guest/status.json`. It does not execute MQTT commands. The HA template switch owns requested state; presenter acknowledgement is distinct from TV power. Guest UI acceptance is deferred.

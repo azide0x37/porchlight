@@ -1,5 +1,58 @@
 # Release
 
+## 2.6.4
+
+- Use the short default welcome greeting, “Welcome to {home}”.
+- Reserve Spotify caption space and increase line-height so album-title descenders remain visible below large artwork.
+
+## 2.6.3
+
+- Convert native monochrome Wi-Fi QR pixels to bounded SVG geometry, preserving the code and quiet zone while coloring both modules and background for each palette.
+- Keep the QR square on older Cast browsers, stack HVAC details within each room card, distribute voice examples across their space, and remove the hosts footer prompt.
+- Add optional authenticated, expiring display measurements to presenter heartbeats, with no screen text or QR content.
+- Show Spotify album covers through a bounded, track-checked HA media proxy; clear them when playback, session, or freshness changes.
+- Include the light-on-dark QR palette, simpler typography and climate columns, and a single configurable welcome line.
+- Name the Alexa-facing switch Guest Screen; the stable HA entity ID and control guards are unchanged.
+
+## 2.6.2
+
+- Include the latest guest standby screen: lamp and home name, without the off-state clock or prompt.
+- Keep HVAC status chips to the current action, avoiding overflow in three-room layouts.
+- Theme native UniFi Wi-Fi QR images with the guest screen palette while retaining the QR modules and quiet zone.
+- Include the commissioned fixed display hook for DashCast and restore commissioning helpers across HA restarts.
+
+## 2.6.1
+
+- Identify native HA QR requests as Porchlight for compatibility with HTTPS gateways.
+- Add an optional home name to the guest greeting, Wi-Fi card, footer and neutral screen.
+
+## 2.6.0
+
+- Added the restricted guest presentation service, authenticated API, MQTT freshness
+  checks, and session acknowledgements.
+- Integrated the guest TV screen and dashboard settings, local QR rendering,
+  neutral off/stale screens, and read-only HVAC cards.
+- Added an Alexa-presentable Home Assistant switch with cancellable Vizio wake
+  and a gated HA Cast display step.
+- Preserved the v2.5.0 infrastructure dashboard and provider configuration.
+- Added an automatic read-only Spotify card and host-provided Jam invite QR,
+  bound to the current guest session with a four-hour maximum lifetime.
+- Added a bearer-protected proxy for the native HA/UniFi Wi-Fi QR image and
+  masked owner settings for its HA connection. Credentials never reach MQTT.
+- Enabled the allowlisted settings-apply path on ordinary hosts as well as
+  appliance installations, so saved guest and MQTT settings take effect.
+- Guest activation requires authenticated MQTT and a commissioned HTTPS display
+  route. The native QR proxy additionally requires an HA access token.
+
+## 2.5.0
+
+- Added a dedicated Infrastructure page with host telemetry, service links,
+  deployment state, HTTP reachability, application readiness and timestamps.
+- Added administrator-owned registries and server-side Beszel/Komodo summaries;
+  privileged credentials are excluded from browser responses.
+- Added bounded private-network probes, stale/unknown and maintenance states,
+  source-aware cache invalidation, and desktop/mobile navigation.
+
 ## 2.4.0
 
 - Reduced scheduled AI analysis from every 15 minutes to hourly, with the

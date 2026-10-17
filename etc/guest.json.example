@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "enabled": false,
+  "welcome": "Welcome to {home}",
+  "wifi": null,
+  "alexa": {
+    "lights": [
+      "Alexa, turn all lights to sunset.",
+      "Alexa, turn kitchen lights to white."
+    ],
+    "music": [
+      "Alexa, play jazz in the living room.",
+      "Alexa, stop music in the living room."
+    ],
+    "blinds": [
+      "Alexa, close blind 50%."
+    ]
+  },
+  "presentation": {
+    "title": "A few things for your stay",
+    "stale_after_seconds": 45,
+    "exit_policy": "neutral_screen_keep_tv_on"
+  },
+  "access_token": "",
+  "allowed_climate_entities": [
+    "climate.replace_me"
+  ]
+}
