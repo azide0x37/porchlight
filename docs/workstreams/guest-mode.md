@@ -1,15 +1,15 @@
 # Guest mode backend and Home Assistant handoff
 
 Status: the combined backend, guest screen, and infrastructure workstream shipped
-in the local v2.6.1 deployment (2026-10-17). Authenticated MQTT, the restricted
+in the local v2.6.2 deployment (2026-10-17). Authenticated MQTT, the restricted
 HTTPS route, and live UniFi QR retrieval are verified. The built-in HA Cast
 receiver failed to launch on the household TV. The commissioned DashCast path
 now wakes the TV from OFF and receives a matching screen heartbeat in about
-47 seconds; repeated ON preserves the session. The operator confirmed the full
+21 seconds on v2.6.2; repeated ON preserves the session. The operator confirmed the full
 guest screen, including Wi-Fi QR and room temperatures. Phone QR joining and
 spoken Alexa commands remain untested. No GitHub release is published here.
 
-The v2.6.2 candidate includes the latest lamp/home-name standby screen, compact
+The v2.6.2 deployment includes the latest lamp/home-name standby screen, compact
 HVAC chips, and native QR theming. The PNG is blended onto the page's warm tile;
 its modules and quiet zone remain unchanged. All four palette screenshots decode
 to the exact synthetic Wi-Fi payload. The QR proxy continues to fetch the selected

@@ -1,10 +1,10 @@
 # Backend reply to Fable — 2026-10-17
 
-Current status: the combined v2.6.1 deployment is live. The final commissioning
+Current status: the combined v2.6.2 deployment is live. The final commissioning
 section below supersedes the original HA Cast plan: DashCast now completes the
 cold TV activation and matching presenter heartbeat, and the operator confirmed
 the full screen. A subsequent HVAC-only patch removes the mode and separator dot
-from status chips. The v2.6.2 candidate now includes your latest lamp/home-name
+from status chips. The v2.6.2 deployment includes your latest lamp/home-name
 standby screen and the requested CSS treatment of native QR images.
 
 ## Initial handoff
@@ -202,10 +202,15 @@ Fable's pending neutral-screen edits were preserved and excluded from this patch
 
 ## Combined v2.6.2 follow-up
 
-The latest standby screen is included in this release candidate. Native QR PNGs
+The latest standby screen is included in the deployed release. Native QR PNGs
 now use an isolated warm tile with multiply blending, preserving their black
 modules and quiet zone. No canvas or credential decoding runs in the page.
 All four 1280×720 daypart screenshots decode to the exact synthetic payload.
 The compact HVAC chip correction is retained. Full tests remain at 112 passing,
 with shell checks and staged install/doctor passing as well. Deployment verification
 and the final requested ON state are recorded in the private operator receipt.
+
+The selected WLAN was renamed after commissioning. HA 2026.9.4 retained the old
+QR until its UniFi integration was reloaded; the new QR was decoded privately to
+verify the renamed SSID. The stable image entity ID is retained, and Porchlight’s
+label was updated separately. No passphrase was changed or exposed.
