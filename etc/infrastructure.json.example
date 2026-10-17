@@ -1,0 +1,31 @@
+{
+  "interval_seconds": 30,
+  "stale_seconds": 120,
+  "hosts": [
+    {
+      "id": "camera-host",
+      "name": "Camera host",
+      "beszel_name": "Camera host",
+      "komodo_name": "Camera host"
+    }
+  ],
+  "services": [
+    {
+      "id": "frigate",
+      "name": "Frigate",
+      "host": "camera-host",
+      "purpose": "Camera monitoring",
+      "komodo_stack": "frigate",
+      "links": [
+        {
+          "label": "Open Frigate",
+          "url": "http://camera-host:5000"
+        }
+      ],
+      "probe": {
+        "url": "http://camera-host:5000/api/version",
+        "kind": "http"
+      }
+    }
+  ]
+}

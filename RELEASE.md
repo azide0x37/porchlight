@@ -1,5 +1,14 @@
 # Release
 
+## 2.5.0
+
+- Added a dedicated Infrastructure page with host telemetry, service links,
+  deployment state, HTTP reachability, application readiness and timestamps.
+- Added administrator-owned registries and server-side Beszel/Komodo summaries;
+  privileged credentials are excluded from browser responses.
+- Added bounded private-network probes, stale/unknown and maintenance states,
+  source-aware cache invalidation, and desktop/mobile navigation.
+
 ## 2.4.0
 
 - Reduced scheduled AI analysis from every 15 minutes to hourly, with the
