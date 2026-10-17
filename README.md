@@ -148,10 +148,11 @@ landing page is reachable.
 
 ## Home Assistant MQTT Bridge
 
-Guest mode is a staged workstream, not a released capability. See the
-[guest-mode plan and resume checklist](docs/workstreams/guest-mode.md) for the
-Alexa-controllable switch, TV presentation, guest Wi-Fi QR, and HVAC display
-design, plus the uncommissioned Home Assistant starter configuration.
+Guest Mode now has an opt-in backend and a [Home Assistant package](homeassistant/porchlight_guest.yaml)
+for an Alexa-presentable switch, cancellable Vizio activation, limited HVAC
+snapshots, and presentation diagnostics. The guest UI is deferred. See the
+[backend API and commissioning handoff](docs/workstreams/guest-mode.md); the
+separate listener defaults to loopback and never serves administrator routes.
 
 The bridge exposes one Home Assistant device:
 
@@ -406,5 +407,7 @@ This writes:
 | Python justified and run through `uv` | PASS | bridge uses Python for JSON/discovery payload generation; `make test` runs `uv run python -m unittest discover -s tests` |
 | MPL atoms documented | PASS | `muster.yaml`, `MUSTER.md`, and this README name the relevant MPL patterns including draft `T2R7.ai-analysis-sidecar` |
 | README self-certifies compliance | PASS | this table |
-| tests current | PASS | `make test` |
-| package and release assets current | PASS | `make package` writes `dist/install.sh`, `dist/manifest.json`, tarball, and SHA256 |
+| guest backend / `T2C5.local-sidecar-bridge` | PASS (backend) | `porchlight-guest.service`, 16 KiB MQTT schema, 45-second expiry, authenticated restricted API, session acknowledgements, owner-only config and lifecycle tests; guest UI remains deferred |
+| guest HA / Alexa / TV acceptance | PENDING | canonical HA package and Jinja contract tests; deployment and hardware evidence are recorded separately in `docs/workstreams/guest-mode.md` |
+| tests current | PASS | `make test`: 60 tests plus shell checks and staged install/doctor; live loopback MQTT outage/reconnect smoke passed |
+| package builds | PASS | `make package DIST=/tmp/porchlight-guest-package` includes the guest backend, HA package, docs and tests; no release publication or replacement of v2.5.0 deployment |

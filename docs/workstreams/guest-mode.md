@@ -1,232 +1,152 @@
-# Guest mode workstream
+# Guest mode backend and Home Assistant handoff
 
-Status: **staged, not deployed**. Prepared 2026-10-17 from `main` at
-`bb34c44d4081bf446aa4412c2971454a121d4457` (v2.4.0). Resume integration when
-MacbookPro is available. This change adds a design and configuration starter;
-the appliance receiver, guest screen, and automation wiring to the Home Assistant
-TV display integration remain to be implemented.
+Status: backend implemented on PR #5; guest UI deferred by request (2026-10-17).
+This branch is based on v2.4.0. Calliope currently runs the separate v2.5.0
+infrastructure workstream. Do not replace that installation with this branch's
+full package without integrating the two branches. No release is published here.
 
-## Intended experience
+## Ownership and changes from the original plan
 
-“Alexa, turn on Guest Mode” activates a Home Assistant switch. The triggered
-Home Assistant automation calls the TV display integration to turn on the Vizio
-TV and show a Porchlight welcome screen containing:
+Home Assistant owns the requested state, session, Vizio power, and Cast action.
+Porchlight accepts only bounded presentation snapshots and reports presentation
+status. It never receives HA service names, shell commands, URLs, or Wi-Fi
+credentials over MQTT, and it never changes climate settings.
 
-- A scannable guest Wi-Fi connection QR code, network name, and manual join help.
-- Short, verified Alexa examples for the actual lights and music devices.
-- Each selected HVAC zone's current temperature, target setpoint or low/high
-  range, mode, operating action, and freshness. HVAC is read-only in this feature.
+The Alexa control is now a **native HA template switch**, backed by a serialized
+ON/OFF script. This replaces the staged MQTT command switch: an old retained
+ON command cannot wake the TV on reconnect because there is no command-topic
+subscriber. Do not install the original staged MQTT switch alongside this one.
+The diagnostic MQTT sensor joins the existing `porchlight` device. The template
+switch is an independent HA entity named `Guest Mode`.
 
-**Confirmed display path:** Alexa → Home Assistant guest-mode automation →
-Home Assistant TV display integration → Porchlight guest screen on the TV.
-The display path is decided. When MacbookPro returns, inspect the integration's
-actual entity/target, action, and required guest-view parameters to wire the call.
+The inspected household display path is Vizio SmartCast power control followed
+by Home Assistant's Google Cast integration. `cast.show_lovelace_view` accepts a
+Home Assistant dashboard path and view path, not an arbitrary Porchlight HTML
+URL. The later UI must implement a compatible presentation surface and the
+backend heartbeat contract, or explicitly replace that display adapter.
 
-“Alexa, turn off Guest Mode” hides the guest content. The initial policy leaves
-the TV powered on and returns its guest presenter to a neutral screen. Powering
-off the TV, restoring its previous input, or changing HVAC settings are separate
-opt-in policies. Repeated ON/OFF commands must be idempotent.
+## Backend
 
-## What is already here
+`porchlight-guest.service` owns a continuous MQTT receiver and a separate HTTP
+listener. It starts disabled; `/etc/porchlight/guest.json` and `guest.env` are
+installed only if absent, mode 0600, and preserved through update/uninstall.
+Real config must be owner-only. Runtime diagnostic state is written atomically
+to `/run/porchlight/guest/status.json`, mode 0600. Credentials are never written
+to that file or to scanner/static webroot data. Presentation state stays in
+memory and is not replayed at startup.
 
-The deployed appliance is the Python/static-web application in this repository.
-`azide0x37/porchlight-dashboard` is a separate Next.js design source; changing
-that repository alone will not update the appliance screen.
+To configure, edit the installed examples locally:
 
-| Existing code | Implication for this feature |
+- Set `enabled: true`, supply a random 32–128 character URL-safe `access_token`,
+  and explicitly list up to eight `allowed_climate_entities`.
+- `wifi: null` is supported while the UI is deferred. Supply guest credentials
+  locally later; never copy appliance setup credentials automatically.
+- Set the broker in `porchlight.mqtt.env` and `HA_MQTT_ENABLE=1`. Authentication is
+  required by default. Optional `MQTT_CAFILE`, `MQTT_CERTFILE`, `MQTT_KEYFILE` use
+  certificate verification. Anonymous MQTT requires the explicit local-only
+  testing override `GUEST_MQTT_ALLOW_ANONYMOUS=1`.
+- The listener defaults to `127.0.0.1:8766`. Keep it private. A later presenter
+  needs trusted routing/TLS and a way to provide its bearer token. Do not expose
+  the admin listener or put tokens in query strings.
+- Validate with `uv run python src/porchlight-guest --apply --check`, then restart
+  `porchlight-guest.service`. Mosquitto 2.x clients with MQTT 5 support are required.
+
+The adapter subscribes only to `<HA_BASE_TOPIC>/guest/presentation`, uses a clean
+MQTT session, bounded packets/frames, reconnect/backoff, and an `offline` Last
+Will on `/guest/availability`. Credentials are in short-lived 0600 client config
+files, not command-line arguments. Availability becomes online after a valid
+snapshot; disconnect/expiry produces unavailable status. `/guest/status` is
+non-retained. No new network adapter for existing scanner command topics exists.
+
+Snapshots are schema version 1, maximum 16 KiB, with exact fields as in
+[`presentation.example.json`](../../examples/guest-mode/presentation.example.json).
+Retained snapshots, duplicates, out-of-order timestamps, malformed values,
+unallowlisted climate entities, timestamps over five seconds in the future, and
+snapshots aged 45 seconds or more are rejected. Rejection does not extend the
+last valid deadline. Local monotonic expiry also protects against clock rollback.
+Unavailable HVAC values become null, not zero. ON→OFF immediately removes all
+Wi-Fi/HVAC/voice content from API responses. A valid reconnect snapshot can
+restore presentation state but cannot wake or power-cycle the TV.
+
+## API for the later UI
+
+All data/heartbeat requests require `Authorization: Bearer <access_token>`.
+Responses use `Cache-Control: no-store`. There is no CORS, cookie auth, file
+serving, or forwarding to the admin dashboard.
+
+| Endpoint | Contract |
 | --- | --- |
-| `src/porchlight-ha-mqtt-bridge` | Publishes MQTT discovery and state, but `process_controls()` reads local `.cmd` files. There is no MQTT subscription or network-to-file adapter in this checkout. Publishing a new command topic alone will not implement control. |
-| `systemd/porchlight-ha-mqtt-bridge.timer` | Runs about once per minute; unsuitable as the only interactive guest-mode transport. |
-| `src/porchlight/webroot/app.js` | Loads the LAN inventory and refreshes every minute. A guest screen needs a separate, limited data path and faster mode changes. |
-| `src/porchlight/web.py` | Serves the dashboard, static files and setup APIs. Hiding navigation is not access control for these endpoints. |
-| `src/porchlight/render.py` | Rewrites scanner JSON and copies web assets. Guest state must not be overwritten by a scanner render. |
-| `bin/install.sh`, `bin/update.sh`, `bin/uninstall.sh` | Preserve `/etc/porchlight` settings. Guest configuration must follow the same lifecycle. |
+| `GET /healthz` | Process liveness only; returns `ui_available: false`. |
+| `GET /api/guest/status` | Sanitized state, session, error, freshness, and remaining lifetime. |
+| `GET /api/guest` | Same status plus welcome/title, allowlisted HVAC, voice examples, Wi-Fi and escaped `qr_payload` only during a fresh enabled session. |
+| `POST /api/guest/heartbeat` | JSON `session_id`, `presentation_id`, `visible` (boolean). Rejects old/inactive sessions. |
 
-## Ownership and transport
+The listener returns 404 for `/guest/`, all admin/setup endpoints, scanner JSON,
+traversal paths, and query-token requests. **No guest HTML or QR renderer ships
+in this change.** The UI should generate the QR locally from `qr_payload`, insert
+labels as text, poll within five seconds, and blank all content when its local
+freshness deadline or connection fails. Send a visible heartbeat at least every
+10 seconds only after rendering; a hidden/neutral view sends `visible: false`.
 
-```mermaid
-flowchart LR
-  A[Alexa: Guest Mode] --> S[HA MQTT switch]
-  S --> C[HA exact ON/OFF handler]
-  C --> H[HA requested-mode helper]
-  H --> T[HA automation: call TV display integration]
-  H --> P[HA: limited presentation snapshot]
-  HVAC[Selected HA climate entities] --> P
-  P --> M[MQTT guest presentation topic]
-  M --> R[New Porchlight guest receiver]
-  W[Local guest Wi-Fi settings] --> R
-  R --> G[Dedicated guest screen on TV]
-  T --> G
-  G --> ACK[Presentation acknowledgement / freshness]
-```
+`starting` means ON but no current presenter acknowledgement. After 30 seconds
+it becomes `degraded`; `active` requires a matching acknowledgement from the
+last 20 seconds. Reconnect, expiry, mode changes, and session changes invalidate
+old presentation IDs. This is presenter-reported liveness, not independent proof
+that physical pixels are visible. Never equate TV power with an active display.
 
-Home Assistant owns requested mode, TV actions, and HVAC truth. Porchlight owns
-guest content, local QR generation, and presentation status. The starter adds
-one MQTT switch to the existing Porchlight device using the same MQTT device
-identifier (`porchlight` by default). Do not create a second scanner device.
-Keep this switch defined in one place: do not also add a discovery component
-with the same unique ID while the YAML entity is installed.
+## Home Assistant tenant
 
-The switch reports **requested** mode; it is not proof the TV is displaying the
-screen. Add a separate diagnostic status for `starting`, `active`, `degraded`,
-`off`, or `unavailable`. `active` requires a current browser/presenter heartbeat,
-not just a successful MQTT publish or a TV power-on state. Tie acknowledgements
-to the current mode session so an old acknowledgement cannot mark a new session
-active. Surface TV wake, HA display-integration, and Porchlight errors independently.
+The canonical package is [`homeassistant/porchlight_guest.yaml`](../../homeassistant/porchlight_guest.yaml).
+It uses the inspected `media_player.visio_tv_2` for power, `media_player.visio_tv`
+for Cast, and the explicitly listed living-room thermostat, bedroom AC, and
+kitchen AC in °F. Adapt these values and MQTT topics for other installations.
 
-### Proposed MQTT contract
+Install into `/config/packages/porchlight_guest.yaml` after backing up any prior
+file and confirming `homeassistant: packages: !include_dir_named packages` is
+already configured. Run `ha core check` before loading. The controller defaults
+OFF on first install and restores its commissioning choice on restart. UI
+readiness and requested mode always start OFF, preventing restart-triggered TV
+wake. Commission the controller only after checking the
+power target. Leave UI readiness OFF until a compatible guest view exists.
 
-All topics below use the default `HA_BASE_TOPIC=porchlight`. Replace the prefix
-consistently for an existing installation. Use authenticated broker connections
-and scoped ACLs; keep credentials in the existing local configuration mechanism.
+Expose only `switch.porchlight_guest_mode` through the existing HA Cloud Alexa
+integration, with the name `Guest Mode`. Verify that all `script.porchlight_guest_*`,
+helpers, diagnostics, and automations remain unexposed. Use the existing UI
+exposure controls; adding a new YAML cloud filter would replace household-wide
+exposure behavior. Voice discovery and spoken acceptance require the actual Echo.
 
-| Topic | Writer → reader | Payload / retention |
-| --- | --- | --- |
-| `porchlight/cmd/guest_mode/set` | HA switch → HA automation | Exact `ON` or `OFF`; QoS 1, **not retained**. Reject all other payloads. |
-| `porchlight/guest/requested` | HA → switch | `ON` / `OFF`; retained. This is UI state, never a replayable TV command. |
-| `porchlight/guest/presentation` | HA → new Porchlight receiver | Versioned JSON, non-retained; changes plus heartbeat every 15 seconds. No Wi-Fi password or arbitrary entity dump. |
-| `porchlight/guest/controller/availability` | HA → switch | Commissioned `online` / `offline`; retained, combined with HA's MQTT birth/will topic. |
-| `porchlight/guest/availability` | Porchlight receiver → switch | `online` after receiver/config initialization; retained Last Will `offline`. Not emitted by the current bridge. |
-| `porchlight/guest/status` | Porchlight → HA diagnostics | Session-correlated applied/presentation state, freshness, bounded error codes; no credentials. To implement. |
+ON is idempotent: repeated ON preserves the session and does not repeat the TV
+sequence. OFF is serialized, cancels pending TV activation, and publishes a fresh
+OFF snapshot. Vizio wake is attempted once, with a 30-second wait and three-second
+settling delay. A session/commissioning check precedes Cast. While UI readiness
+is OFF, TV diagnostics report `ui_pending` after successful wake. Otherwise the
+script calls HA Cast once and waits up to 30 seconds for a matching presenter.
+Failure is `tv_wake_timeout` or `display_unconfirmed`; neither reports active.
+OFF leaves TV power and input alone; the future UI must clear its content.
 
-The receiver accepts only the presentation schema. It does not execute service
-names, URLs, commands, or shell fragments from MQTT. It must reject malformed,
-oversized, future-dated, and expired messages; validate actual numeric values
-and units; and apply the newest valid state atomically. Limit payloads to 16 KiB.
-Use a monotonic local receipt deadline as well as the sender timestamp. After
-45 seconds without a valid heartbeat, hide the QR and mark HVAC unavailable.
-The browser must also enforce freshness if its connection to Porchlight drops.
+The household also has a Laboratory camera automation targeting this TV. Its
+priority/restoration interaction with Guest Mode must be checked before UI
+commissioning; this package does not silently rewrite that separate automation.
 
-An OFF state must clear visible credentials promptly even if the TV integration
-fails. Never queue a delayed TV wake for a stale session. A Porchlight reconnect
-may recover the current guest display from the next live snapshot, but must not
-power-cycle the TV. Home Assistant restart defaults mode and commissioning to
-OFF in the starter, avoiding an unexpected wake or credential display.
+## Verification and remaining acceptance
 
-## Guest content and screen
+`make test` covers backend validation, auth/route isolation, stale/retained data,
+OFF, session acknowledgements, config preservation, and YAML/Jinja projections.
+The template harness supplies HA-like functions; runtime validation in the actual
+tenant is separate. `make package DIST=/tmp/porchlight-guest-package` includes the
+backend, unit, defaults, HA package, examples, and this handoff.
 
-The local configuration example is
-[`porchlight-guest.example.json`](../../examples/guest-mode/porchlight-guest.example.json).
-It is proposed input for the new feature, not a format supported by v2.4.0.
-Store the real configuration outside the checkout under `/etc/porchlight`, with
-access limited to the service and administrator. The Wi-Fi password is for a
-guest network and is supplied locally; do not infer it from appliance setup
-Wi-Fi, commit it, or send it to a QR web service.
+A real temporary loopback Mosquitto smoke test verifies retained replay rejection,
+live ON/OFF, broker loss/reconnect, and graceful offline shutdown. Full guest UI,
+QR rendering and phone joins, actual household voice commands, physical screen
+visibility, and display coexistence remain UI/commissioning acceptance work.
 
-Generate the Wi-Fi QR locally using a maintained, bundled library. Encode the
-standard `WIFI:T:WPA;S:<escaped ssid>;P:<escaped password>;H:false;;` form, with
-correct escaping of backslashes, semicolons, commas, colons, and quotes. Handle
-open networks explicitly. Test Android and iOS, special characters, Unicode,
-hidden SSIDs, and the actual network's security mode. A QR contains the Wi-Fi
-secret, so give QR responses `no-store` too (the current server caches SVG/PNG).
+Rollback: turn Guest Mode OFF and unexpose its switch; disable the controller,
+stop the guest service, and restore/remove only this HA package. Preserve guest
+configuration and existing scanner MQTT topics. Remove only this feature's
+retained `/guest/requested` and `/guest/availability` state if needed.
 
-Use a dedicated `/guest/` presentation surface with a guest-only data endpoint.
-The TV view should not load `hosts.json`, `snapshot.json`, setup APIs, network
-inventory, or administrator navigation. Before serving real content, implement
-and test a guest access boundary: a dedicated restricted listener or equivalent
-route authorization allowing only guest assets/data. An isolated TV route must
-not become a route to the unrestricted admin listener. Keep the public demo
-strictly synthetic. Do not treat the current unauthenticated LAN web service as
-safe to publish on the Internet or guest network merely because the UI is hidden.
-
-At 1920×1080, reserve a large high-contrast QR area, show 2–3 short voice examples
-per category, and use readable temperature cards. Allow 5% overscan margins;
-check at 1280×720 too. Use plain text insertion for configured labels/commands.
-No scrolling should be needed for the configured household. Blank unavailable
-measurements rather than turning null/unknown into zero. Show `°F` or `°C` from
-the HA unit system and support `temperature`, `target_temp_low`, and
-`target_temp_high` separately. Mode (for example heat/cool) and action (for
-example heating/idle) are different fields.
-
-## Implementation sequence and gates
-
-- [x] Inspect current appliance architecture and identify missing MQTT receiver.
-- [x] Stage HA switch/automation starter, local content example, and sample data.
-- [x] Confirm that the Alexa-triggered HA automation calls the HA TV display integration.
-- [ ] **G0 — inventory on MacbookPro.** Find the actual checkout, read its current
-  `AGENTS.md`, preserve dirty work, compare with this branch, and confirm the
-  running Porchlight version, HA version, MQTT base topic/node ID/birth-will
-  settings, TV display integration target/action, climate entities, and Alexa
-  exposure method.
-- [ ] **G1 — receiver and state.** Build a systemd-owned subscriber with explicit
-  topics, reconnect/backoff, Last Will, schema validation, bounded atomic state
-  writes, expiry, and session-aware status. Add mocks for disconnect, invalid
-  JSON, retained/stale state, rapid ON→OFF, and duplicate commands. No TV service
-  calls belong in the appliance subscriber.
-- [ ] **G2 — guest feature.** Add protected local configuration, local QR
-  generation, dedicated guest page/data access, freshness handling, a browser
-  heartbeat, and inactive view. Verify scanner renders cannot clobber its state.
-- [ ] **G3 — HA/TV integration.** Adapt the starter to the real HA version and
-  entities; wire the Alexa-triggered automation to the HA TV display integration
-  with its required guest-view parameters. Confirm bounded wake/display retries
-  and cancellation after OFF. Validate config in HA before loading it. Keep the
-  commissioning gate OFF until G1–G3 have been verified.
-- [ ] **G4 — Alexa and household acceptance.** Expose only the guest-mode switch
-  with Alexa name `Guest Mode` using the existing HA Cloud or manual Smart Home
-  integration. Do not expose commissioning/helpers/scanner controls. Discover
-  devices and verify the actual voice commands and music destination.
-- [ ] **G5 — package and rollout.** Add lifecycle handling and tests, update the
-  README self-certification table and applicable Muster mapping, run `make test`
-  and `make package`, review the change, and perform the normal release/install.
-  Record versions and acceptance evidence before marking the feature complete.
-
-### Resume checklist
-
-Fetch the staged branch into an isolated worktree after inspecting local work:
-
-```sh
-git fetch origin workstream/guest-mode
-git worktree add ../porchlight-guest-mode origin/workstream/guest-mode
-```
-
-Record these installation-specific values locally, not in a public PR:
-
-| Required value | How to resolve |
-| --- | --- |
-| Vizio media-player entity and network wake | Test HA integration; Vizio documentation requires Quick Start rather than Eco Mode for network power-on. Confirm this model supports it. |
-| HA TV display integration call | The display path is confirmed. Inspect the configured integration's entity/target, action, and guest-view parameters; invoke it from the Alexa-triggered HA automation and verify the guest screen appears. |
-| HVAC entities and units | Inspect selected `climate.*` states/attributes and the HA unit system. Start with one zone, then expand the projection explicitly. |
-| Guest SSID/security/password | Enter locally from the guest-network settings. Keep out of issues, logs, screenshots, demos, and Git. |
-| Alexa lights/music names | Test each phrase against the actual Echo/group configuration. The example phrases are unverified placeholders. |
-| Alexa integration | Reuse the existing HA Cloud or manual Smart Home setup; no new cloud subscription is assumed. |
-
-Resume prompt: “Continue the guest-mode workstream in
-`docs/workstreams/guest-mode.md`. Inspect local changes and actual HA/Porchlight
-configuration first. The Alexa-triggered automation will call the Home Assistant
-TV display integration; inspect its target/action and guest-view parameters.
-Complete G0, then implement G1–G5 using the staged contract. The starter is not
-deployed, its HA TV display call is not yet wired, and no real guest credentials
-have been collected.” This document does not create an automatic watcher or
-scheduled resume task.
-
-### Acceptance matrix
-
-| Scenario | Required observation |
-| --- | --- |
-| Alexa ON with TV off | The HA automation calls the TV display integration; one TV wake, current guest page and scannable Wi-Fi QR. Target: visible within 30 seconds; set the final budget after measuring the hardware. |
-| Alexa ON with TV already on / repeated ON | Same requested state; no repeated display calls, wake loop, or new session. |
-| Alexa OFF during TV startup | Pending activation is cancelled; QR clears; no delayed wake/display call. |
-| Two setpoint types | Single target and low/high range display correctly with units, current temperature, mode and action. |
-| HA/Porchlight/MQTT outage | Unavailable diagnostic; QR hidden at expiry; HVAC marked unavailable, never falsely current. |
-| Malformed or stale MQTT message | Rejected; does not extend the last valid state's lifetime. |
-| Restart / reconnect | HA restart defaults OFF; reconnect cannot replay a TV wake; fresh state rehydrates only the presentation. |
-| Guest content access | Inactive screen and expired/unauthorized guest requests cannot return credentials or reach admin APIs. No secret appears in logs, retained MQTT, analytics, or scanner snapshots. |
-| QR / voice instructions | Real iOS and Android join test; household-approved Alexa light/music phrases work. |
-| Exit | Guest information disappears, TV follows documented exit policy, HVAC settings remain unchanged. |
-
-Rollback: turn guest mode OFF, disable its HA automations/Alexa exposure, stop
-the new guest receiver/presenter, and remove only this feature's retained MQTT
-state/discovery if applicable. Preserve existing scanner topics, configuration,
-and the shared Porchlight device. Restore the prior release using the repository's
-normal update procedure; preserve local guest configuration unless explicitly purged.
-
-## Starter validation
-
-The starter is outside `src/`, `etc/`, and `systemd/`, and is not installed or
-included by the current release Makefile. Syntax/template checks do not prove
-Home Assistant runtime compatibility or hardware behavior. Record actual checks
-in the staging PR; all G0–G5 live checks remain outstanding until performed.
-
-References: [HA MQTT switch](https://www.home-assistant.io/integrations/switch.mqtt/),
-[HA Alexa Smart Home](https://www.home-assistant.io/integrations/alexa.smart_home/),
-[HA Vizio](https://www.home-assistant.io/integrations/vizio/).
+References: [HA template switch](https://www.home-assistant.io/integrations/template/#switch),
+[HA Google Cast](https://www.home-assistant.io/integrations/cast/),
+[Nabu Casa Alexa exposure](https://support.nabucasa.com/hc/en-us/articles/25619363899677-Configuring-Amazon-Alexa-to-work-with-Home-Assistant),
+[Mosquitto subscriber](https://mosquitto.org/man/mosquitto_sub-1.html).

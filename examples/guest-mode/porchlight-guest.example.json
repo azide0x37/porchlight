@@ -1,13 +1,8 @@
 {
   "schema_version": 1,
   "enabled": false,
-  "welcome": "Welcome — make yourself at home",
-  "wifi": {
-    "ssid": "EXAMPLE-GUEST-NETWORK",
-    "security": "WPA",
-    "password": "EXAMPLE-ONLY-REPLACE-LOCALLY",
-    "hidden": false
-  },
+  "welcome": "Welcome \u2014 make yourself at home",
+  "wifi": null,
   "alexa": {
     "lights": [
       "Alexa, turn on the guest room lights.",
@@ -23,5 +18,9 @@
     "title": "A few things for your stay",
     "stale_after_seconds": 45,
     "exit_policy": "neutral_screen_keep_tv_on"
-  }
+  },
+  "access_token": "",
+  "allowed_climate_entities": [
+    "climate.replace_me"
+  ]
 }

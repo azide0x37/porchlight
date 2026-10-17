@@ -205,6 +205,11 @@ install_file "$SRC_ROOT/src/porchlight-render" "$RELEASE_DIR/bin/porchlight-rend
 install_file "$SRC_ROOT/src/porchlight-render" "$RELEASE_DIR/src/porchlight-render" 0755
 install_file "$SRC_ROOT/src/porchlight-health" "$RELEASE_DIR/bin/porchlight-health" 0755
 install_file "$SRC_ROOT/src/porchlight-health" "$RELEASE_DIR/src/porchlight-health" 0755
+install_file "$SRC_ROOT/src/porchlight-guest" "$RELEASE_DIR/bin/porchlight-guest" 0755
+install_file "$SRC_ROOT/src/porchlight-guest" "$RELEASE_DIR/src/porchlight-guest" 0755
+install_file "$SRC_ROOT/systemd/porchlight-guest.service" "$RELEASE_DIR/systemd/porchlight-guest.service" 0644
+install_file "$SRC_ROOT/etc/guest.json.example" "$RELEASE_DIR/etc/guest.json.example" 0600
+install_file "$SRC_ROOT/etc/guest.env.example" "$RELEASE_DIR/etc/guest.env.example" 0600
 install_file "$SRC_ROOT/src/porchlight-web" "$RELEASE_DIR/bin/porchlight-web" 0755
 install_file "$SRC_ROOT/src/porchlight-web" "$RELEASE_DIR/src/porchlight-web" 0755
 install_file "$SRC_ROOT/src/porchlight-ai-analysis" "$RELEASE_DIR/bin/porchlight-ai-analysis" 0755
@@ -260,6 +265,12 @@ rm -f "$CURRENT_LINK"
 mv -f "$CURRENT_LINK.next" "$CURRENT_LINK"
 install_static_webroot
 
+for guest_file in guest.json guest.env; do
+  if [ ! -f "$CONFIG_DIR/$guest_file" ]; then
+    install_file "$SRC_ROOT/etc/$guest_file.example" "/etc/$PROJECT/$guest_file" 0600
+  fi
+done
+
 if [ ! -f "$MQTT_CONFIG_FILE" ]; then
   install_file "$SRC_ROOT/etc/porchlight.mqtt.env.example" "/etc/$PROJECT/porchlight.mqtt.env" 0600
 fi
@@ -304,8 +315,8 @@ if [ -z "$ROOT" ]; then
     fi
   fi
   systemctl daemon-reload
-  systemctl enable porchlight-web.service porchlight-discover.timer porchlight-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer porchlight-ai-analysis.timer
-  systemctl restart porchlight-web.service porchlight-discover.timer porchlight-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer porchlight-ai-analysis.timer
+  systemctl enable porchlight-web.service porchlight-discover.timer porchlight-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer porchlight-ai-analysis.timer porchlight-guest.service
+  systemctl restart porchlight-web.service porchlight-discover.timer porchlight-scan.timer porchlight-render.timer porchlight-health.timer porchlight-ha-mqtt-bridge.timer porchlight-ai-analysis.timer porchlight-guest.service
   if [ "$APPLIANCE_MODE" = "1" ]; then
     systemctl enable --now porchlight-setup-apply.path porchlight-setup-ap.service
   fi

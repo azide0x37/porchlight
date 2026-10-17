@@ -9,3 +9,9 @@ pythonVersion = "3.11"
 
 [tool.ruff]
 line-length = 120
+
+[dependency-groups]
+dev = [
+    "jinja2>=3.1.6",
+    "pyyaml>=6.0.3",
+]

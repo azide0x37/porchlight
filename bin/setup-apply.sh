@@ -13,6 +13,7 @@ rm -f "$ACTION_FILE"
 case "$ACTION" in
   restart_bridge)
     systemctl start porchlight-ha-mqtt-bridge.service
+    systemctl try-restart porchlight-guest.service
     ;;
   shutdown_setup_ap)
     if [ -f "$CONFIG_DIR/setup.env" ]; then

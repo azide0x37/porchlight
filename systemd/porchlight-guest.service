@@ -1,0 +1,26 @@
+[Unit]
+Description=Porchlight restricted guest backend and MQTT receiver
+Documentation=file:/opt/porchlight/current/README.md
+After=network-online.target local-fs.target
+Wants=network-online.target
+ConditionPathExists=/etc/porchlight/guest.json
+
+[Service]
+Type=simple
+ExecStart=/opt/porchlight/current/bin/porchlight-guest --apply
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=15s
+RuntimeDirectory=porchlight
+RuntimeDirectoryPreserve=yes
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/porchlight
+MemoryMax=128M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

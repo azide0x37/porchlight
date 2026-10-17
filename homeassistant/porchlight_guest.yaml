@@ -1,0 +1,282 @@
+# Home Assistant package: native Alexa switch + bounded Vizio / HA Cast chain.
+# Merge through homeassistant.packages. No Wi-Fi or broker credentials belong here.
+# Only switch.porchlight_guest_mode should be exposed to Alexa.
+input_boolean:
+  porchlight_guest_mode_ready:
+    name: Porchlight guest controller commissioned
+    # Starts off on first install, then restores the operator's commissioning choice.
+    icon: mdi:tools
+  porchlight_guest_mode_requested:
+    name: Porchlight guest mode requested
+    initial: false
+  porchlight_guest_ui_ready:
+    name: Porchlight guest display commissioned
+    initial: false
+
+input_text:
+  porchlight_guest_session:
+    name: Porchlight guest session
+    initial: inactive
+    max: 100
+  porchlight_guest_tv_status:
+    name: Porchlight guest TV status
+    initial: "off"
+    max: 100
+  porchlight_guest_dashboard_path:
+    name: Porchlight guest HA Cast dashboard path
+    initial: ""
+    max: 100
+  porchlight_guest_view_path:
+    name: Porchlight guest HA Cast view path
+    initial: guest
+    max: 100
+
+template:
+  - switch:
+      - name: Guest Mode
+        default_entity_id: switch.porchlight_guest_mode
+        unique_id: porchlight_guest_mode
+        icon: mdi:account-group
+        state: "{{ is_state('input_boolean.porchlight_guest_mode_requested', 'on') }}"
+        availability: "{{ is_state('input_boolean.porchlight_guest_mode_ready', 'on') }}"
+        turn_on:
+          - action: script.porchlight_guest_set_mode
+            data:
+              requested: "ON"
+        turn_off:
+          - action: script.porchlight_guest_set_mode
+            data:
+              requested: "OFF"
+
+mqtt:
+  sensor:
+    - name: Guest presentation
+      default_entity_id: sensor.porchlight_guest_presentation
+      unique_id: porchlight_guest_presentation
+      state_topic: porchlight/guest/status
+      value_template: "{{ value_json.status }}"
+      json_attributes_topic: porchlight/guest/status
+      json_attributes_template: >-
+        {{ {'session_id': value_json.session_id, 'error': value_json.error,
+            'fresh': value_json.fresh, 'last_rejection': value_json.last_rejection} | to_json }}
+      expire_after: 20
+      entity_category: diagnostic
+      availability_topic: porchlight/guest/availability
+      device:
+        identifiers: [porchlight]
+        name: Porchlight LAN Directory
+
+script:
+  porchlight_guest_set_mode:
+    alias: Porchlight guest mode request
+    mode: queued
+    max: 10
+    fields:
+      requested:
+        required: true
+        selector:
+          select:
+            options: ["ON", "OFF"]
+    sequence:
+      - condition: template
+        value_template: "{{ requested in ['ON', 'OFF'] }}"
+      - choose:
+          - conditions: "{{ requested == 'OFF' }}"
+            sequence:
+              - action: input_boolean.turn_off
+                target:
+                  entity_id: input_boolean.porchlight_guest_mode_requested
+              - action: script.turn_off
+                target:
+                  entity_id: script.porchlight_guest_present_on_tv
+              - action: script.porchlight_guest_publish
+          - conditions:
+              - condition: template
+                value_template: "{{ requested == 'ON' }}"
+              - condition: state
+                entity_id: input_boolean.porchlight_guest_mode_ready
+                state: "on"
+              - condition: state
+                entity_id: input_boolean.porchlight_guest_mode_requested
+                state: "off"
+            sequence:
+              - action: input_text.set_value
+                target:
+                  entity_id: input_text.porchlight_guest_session
+                data:
+                  value: "{{ utcnow().isoformat() }}"
+              - action: input_boolean.turn_on
+                target:
+                  entity_id: input_boolean.porchlight_guest_mode_requested
+              - action: script.porchlight_guest_publish
+
+  porchlight_guest_publish:
+    alias: Porchlight publish limited guest snapshot
+    mode: queued
+    max: 10
+    sequence:
+      - variables:
+          guest_enabled: >-
+            {{ is_state('input_boolean.porchlight_guest_mode_ready', 'on')
+               and is_state('input_boolean.porchlight_guest_mode_requested', 'on') }}
+      - action: mqtt.publish
+        data:
+          topic: porchlight/guest/presentation
+          qos: 1
+          retain: false
+          payload: >-
+            {% set zones = namespace(items=[]) %}
+            {% if guest_enabled | bool %}
+              {% for entity, label in [
+                ('climate.living_room_thermostat', 'Living room'),
+                ('climate.bedroom_ac', 'Bedroom'),
+                ('climate.kitchen_ac', 'Kitchen')] %}
+                {% set mode = states(entity) %}
+                {% set available = mode not in ['unknown', 'unavailable'] %}
+                {% set zones.items = zones.items + [{
+                  'id': entity, 'label': label, 'available': available,
+                  'current_temperature': (state_attr(entity, 'current_temperature') | float(none)) if available else none,
+                  'target_temperature': (state_attr(entity, 'temperature') | float(none)) if available else none,
+                  'target_temperature_low': (state_attr(entity, 'target_temp_low') | float(none)) if available else none,
+                  'target_temperature_high': (state_attr(entity, 'target_temp_high') | float(none)) if available else none,
+                  'unit': '°F', 'mode': mode if available else none,
+                  'action': state_attr(entity, 'hvac_action') if available else none
+                }] %}
+              {% endfor %}
+            {% endif %}
+            {{ {'schema_version': 1, 'enabled': guest_enabled | bool,
+                'generated_at': utcnow().isoformat(),
+                'session_id': states('input_text.porchlight_guest_session'),
+                'hvac': zones.items} | to_json }}
+      - action: mqtt.publish
+        data:
+          topic: porchlight/guest/requested
+          payload: "{{ 'ON' if guest_enabled | bool else 'OFF' }}"
+          qos: 1
+          retain: true
+
+  porchlight_guest_present_on_tv:
+    alias: Porchlight guest Vizio activation and HA Cast
+    mode: restart
+    sequence:
+      - variables:
+          session: "{{ states('input_text.porchlight_guest_session') }}"
+      - condition: state
+        entity_id: input_boolean.porchlight_guest_mode_requested
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.porchlight_guest_mode_ready
+        state: "on"
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.porchlight_guest_tv_status
+        data:
+          value: waking
+      - if: "{{ not is_state('media_player.visio_tv_2', 'on') }}"
+        then:
+          - action: media_player.turn_on
+            continue_on_error: true
+            target:
+              entity_id: media_player.visio_tv_2
+      - wait_template: >-
+          {{ is_state('media_player.visio_tv_2', 'on') and
+             states('media_player.visio_tv') not in ['unknown', 'unavailable'] }}
+        timeout: "00:00:30"
+        continue_on_timeout: true
+      - if: "{{ not wait.completed }}"
+        then:
+          - action: input_text.set_value
+            target:
+              entity_id: input_text.porchlight_guest_tv_status
+            data:
+              value: tv_wake_timeout
+          - stop: TV wake timed out
+      - delay: "00:00:03"
+      - condition: template
+        value_template: >-
+          {{ is_state('input_boolean.porchlight_guest_mode_requested', 'on') and
+             is_state('input_boolean.porchlight_guest_mode_ready', 'on') and
+             states('input_text.porchlight_guest_session') == session }}
+      - if: >-
+          {{ not is_state('input_boolean.porchlight_guest_ui_ready', 'on') or
+             not (states('input_text.porchlight_guest_dashboard_path') | regex_match('^[a-z0-9][a-z0-9_-]{0,99}$')) or
+             not (states('input_text.porchlight_guest_view_path') | regex_match('^[a-z0-9][a-z0-9_-]{0,99}$')) }}
+        then:
+          - action: input_text.set_value
+            target:
+              entity_id: input_text.porchlight_guest_tv_status
+            data:
+              value: ui_pending
+          - stop: Guest UI is deferred; TV is awake
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.porchlight_guest_tv_status
+        data:
+          value: display_requested
+      - action: cast.show_lovelace_view
+        continue_on_error: true
+        data:
+          entity_id: media_player.visio_tv
+          dashboard_path: "{{ states('input_text.porchlight_guest_dashboard_path') }}"
+          view_path: "{{ states('input_text.porchlight_guest_view_path') }}"
+      - wait_template: >-
+          {{ is_state('sensor.porchlight_guest_presentation', 'active') and
+             state_attr('sensor.porchlight_guest_presentation', 'session_id') == session }}
+        timeout: "00:00:30"
+        continue_on_timeout: true
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.porchlight_guest_tv_status
+        data:
+          value: "{{ 'presenter_confirmed' if wait.completed else 'display_unconfirmed' }}"
+
+automation:
+  - id: porchlight_guest_transition
+    alias: Porchlight guest TV transition
+    mode: restart
+    triggers:
+      - trigger: state
+        entity_id: input_boolean.porchlight_guest_mode_requested
+    actions:
+      - action: script.turn_off
+        target:
+          entity_id: script.porchlight_guest_present_on_tv
+      - if: "{{ is_state('input_boolean.porchlight_guest_mode_requested', 'on') }}"
+        then:
+          - action: script.turn_on
+            target:
+              entity_id: script.porchlight_guest_present_on_tv
+        else:
+          - action: input_text.set_value
+            target:
+              entity_id: input_text.porchlight_guest_tv_status
+            data:
+              value: "off"
+      # OFF never powers down the TV or restores an unrelated source.
+  - id: porchlight_guest_decommission
+    alias: Porchlight guest controller disabled
+    triggers:
+      - trigger: state
+        entity_id: input_boolean.porchlight_guest_mode_ready
+        to: "off"
+    actions:
+      - action: script.porchlight_guest_set_mode
+        data:
+          requested: "OFF"
+  - id: porchlight_guest_heartbeat
+    alias: Porchlight guest presentation heartbeat
+    mode: single
+    triggers:
+      - trigger: homeassistant
+        event: start
+      - trigger: time_pattern
+        seconds: "/15"
+      - trigger: state
+        entity_id:
+          - input_boolean.porchlight_guest_mode_requested
+          - input_boolean.porchlight_guest_mode_ready
+          - climate.living_room_thermostat
+          - climate.bedroom_ac
+          - climate.kitchen_ac
+    actions:
+      - action: script.porchlight_guest_publish
