@@ -273,3 +273,21 @@ The Spotify header and caption cannot flex-shrink; the title has 1.35 line-heigh
 and the artist/album credit 1.45. The exact text from the photo has no clipped
 scroll extent in the 720p preview. Existing artwork transport and QR logic are
 unchanged. All 126 tests plus shell checks and staged install/doctor pass.
+
+### v2.6.4 deployment verified
+
+Commit `6d73eff` is installed on the local server. Its package SHA256 is
+`3b30a4b46dc718222d23d5293cc06e6150c436b4669b3d031a59f24fce012c2a`.
+Installation preserved every pre-existing configuration hash. After installation,
+the authorized welcome setting was updated separately to `Welcome to {home}`;
+every other setting was preserved. The live guest view expands it to exactly
+“Welcome to Botanical”.
+
+The guarded display hook now selects v2.6.4 and the refreshed physical TV reports
+that version, Chrome 84, 1280×720, a 448×448 QR, zero page overflow, and no
+overflowing cards. Protected Spotify artwork returns a valid JPEG with matching
+track and presentation headers. The title and artist/album caption each fit their
+scroll extent at 720p and 1080p in the synthetic preview. The owner's earlier
+photo confirms physical artwork rendering; the caption correction is included
+in this refreshed build. All known shared UI changes through the Spotify-card
+16:25 note are included. Guest Mode remains ON and Alexa remains deferred.
