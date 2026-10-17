@@ -240,3 +240,20 @@ expire with the presenter lease. They are excluded from MQTT and guest content.
 `make package` passes. The Guest Screen name is prepared in HA, but Cloud has no
 subscription. The owner has deferred the manual Alexa integration; voice control
 must not be reported as commissioned.
+
+### v2.6.3 deployment verified
+
+Commit `ac4d169` is installed on the local server. Its package SHA256 is
+`b56d2e5b61ffd8d7e44b75e9d8057ccb55722576d57e19cca67856610f6dde68`.
+The install/doctor checks passed and every pre-existing `/etc/porchlight` file
+retained its hash. The existing guarded display hook now includes the release
+query so DashCast reloads the page when assets change.
+
+The physical TV's own heartbeat reports version 2.6.3, Chrome 84, 1280×720,
+a 448×448 QR, zero page overflow, and no overflowing cards. The authenticated
+album-art endpoint returns a valid JPEG with matching track and presentation
+headers. The native QR still matches HA byte-for-byte and privately decodes to
+the renamed WLAN. Guest Mode remains ON. Public-route authentication and admin
+route isolation passed; a phone scan and physical album-art confirmation remain
+owner acceptance checks. No Alexa or AWS resources were created; the owner
+explicitly deferred that integration. GitHub release publication remains separate.
