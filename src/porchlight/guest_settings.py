@@ -34,7 +34,7 @@ DEFAULT_PRESENTATION = {"title": "A few things for your stay", "stale_after_seco
 DEFAULTS = {
     "schema_version": 1,
     "enabled": False,
-    "welcome": "Welcome — make yourself at home",
+    "welcome": "Welcome to {home}, make yourself at home",
     "wifi": None,
     "alexa": {"lights": [], "music": [], "blinds": []},
     "presentation": dict(DEFAULT_PRESENTATION),

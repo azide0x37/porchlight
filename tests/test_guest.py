@@ -16,6 +16,12 @@ from porchlight.guest import GuestState, GuestHTTPServer, load_guest_config, wif
 from porchlight.guest_mqtt import GuestMQTT, MAX_FRAME
 
 
+DISPLAY = {"version": "2.6.3", "viewport_width": 1280, "viewport_height": 720,
+           "pixel_ratio": 1, "font_px": 11.88, "overflow_width": 0, "overflow_height": 0,
+           "qr_width": 400, "qr_height": 400, "chrome_major": 87,
+           "css_min": True, "css_aspect_ratio": False, "overflow": []}
+
+
 class Clock:
     now = 1792238400.0
     tick = 100.0
@@ -40,9 +46,70 @@ class GuestTest(unittest.TestCase):
         message.update(changes)
         return self.state.receive(json.dumps(message).encode())
 
-    def heartbeat(self):
+    def heartbeat(self, **fields):
         view = self.state.view()
-        return self.state.heartbeat({"session_id": view["session_id"], "presentation_id": view["presentation_id"], "visible": True})
+        return self.state.heartbeat({"session_id": view["session_id"], "presentation_id": view["presentation_id"], "visible": True, **fields})
+
+    def test_display_measurements_are_private_bounded_and_expire(self):
+        self.send()
+        self.heartbeat(display=DISPLAY)
+        self.assertEqual(self.state.display_view(), {"display": DISPLAY})
+        self.assertNotIn("display", self.state.status())
+        self.assertNotIn("display", self.state.view())
+        self.state.display_view()["display"]["overflow"].append("wifi")
+        self.assertEqual(self.state.display_view()["display"]["overflow"], [])
+        self.clock.advance(20)
+        self.assertIsNone(self.state.display_view()["display"])
+        self.heartbeat(display=DISPLAY)
+        self.clock.advance(45)
+        self.assertIsNone(self.state.display_view()["display"])
+
+    def test_display_measurements_clear_when_hidden_off_or_disconnected(self):
+        self.send()
+        self.heartbeat(display=DISPLAY)
+        self.heartbeat(display=DISPLAY, visible=False)
+        self.assertIsNone(self.state.display_view()["display"])
+        self.heartbeat(display=DISPLAY)
+        self.heartbeat()  # Legacy clients must not retain another client's measurements.
+        self.assertIsNone(self.state.display_view()["display"])
+        self.heartbeat(display=DISPLAY)
+        self.clock.advance(1)
+        self.send(enabled=False, hvac=[])
+        self.assertIsNone(self.state.display_view()["display"])
+        self.clock.advance(1)
+        self.send()
+        self.heartbeat(display=DISPLAY)
+        self.state.disconnect()
+        self.assertIsNone(self.state.display_view()["display"])
+
+    def test_invalid_display_does_not_refresh_ack(self):
+        self.send()
+        self.heartbeat(display=DISPLAY)
+        deadline = self.state.ack_deadline
+        self.clock.advance(1)
+        bad = [None, {}, {**DISPLAY, "url": "https://example.test"},
+               {**DISPLAY, "version": "<private>"}, {**DISPLAY, "font_px": 10 ** 500},
+               {**DISPLAY, "font_px": float("nan")}, {**DISPLAY, "pixel_ratio": float("inf")},
+               {**DISPLAY, "viewport_width": True}, {**DISPLAY, "viewport_height": 8193},
+               {**DISPLAY, "css_min": 1}, {**DISPLAY, "overflow": ["screen text"]},
+               {**DISPLAY, "overflow": [{}]}, {**DISPLAY, "overflow": ["wifi"] * 9}]
+        for display in bad:
+            with self.subTest(display=display), self.assertRaises(ValueError):
+                self.heartbeat(display=display)
+            self.assertEqual(self.state.ack_deadline, deadline)
+            self.assertEqual(self.state.display_view()["display"], DISPLAY)
+
+    def test_display_cannot_cross_presentation_or_session(self):
+        self.send()
+        self.heartbeat(display=DISPLAY)
+        view = self.state.view()
+        ack = {"session_id": view["session_id"], "presentation_id": view["presentation_id"],
+               "visible": True, "display": DISPLAY}
+        self.clock.advance(1)
+        self.send(session_id="new-session")
+        with self.assertRaises(ValueError):
+            self.state.heartbeat(ack)
+        self.assertIsNone(self.state.display_view()["display"])
 
     def test_on_requires_presenter_and_off_hides_secrets(self):
         self.assertTrue(self.send())
@@ -202,11 +269,17 @@ class GuestTest(unittest.TestCase):
             for path in ("/api/setup/status", "/api/setup/mqtt", "/hosts.json", "/snapshot.json", "/../etc/porchlight/guest.json", "/guest/", "/api/guest?token=anything"):
                 self.assertEqual(request("GET", path)[0], 404)
             self.assertEqual(request("GET", "/api/guest", token=False)[0], 401)
+            self.assertEqual(request("GET", "/api/guest/display", token=False)[0], 401)
+            self.assertEqual(request("GET", "/api/guest/display")[1], {"display": None})
             self.assertNotIn("wifi", request("GET", "/api/guest")[1])
             self.send()
             view = request("GET", "/api/guest")[1]
             ack = {"session_id": view["session_id"], "presentation_id": view["presentation_id"], "visible": True}
             self.assertEqual(request("POST", "/api/guest/heartbeat", json.dumps(ack))[1]["status"], "active")
+            self.assertEqual(request("POST", "/api/guest/heartbeat", json.dumps({**ack, "display": DISPLAY}))[0], 200)
+            self.assertEqual(request("GET", "/api/guest/display")[1], {"display": DISPLAY})
+            # Even otherwise valid JSON is bounded before parsing.
+            self.assertEqual(request("POST", "/api/guest/heartbeat", json.dumps(ack) + " " * 1024)[0], 400)
             self.assertEqual(request("POST", "/api/guest/heartbeat", "x" * 600)[0], 400)
             self.clock.advance(46)
             self.assertNotIn("wifi", request("GET", "/api/guest")[1])

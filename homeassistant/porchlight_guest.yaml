@@ -33,7 +33,7 @@ input_text:
 
 template:
   - switch:
-      - name: Guest Mode
+      - name: Guest Screen
         default_entity_id: switch.porchlight_guest_mode
         unique_id: porchlight_guest_mode
         icon: mdi:account-group

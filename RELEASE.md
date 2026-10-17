@@ -1,5 +1,14 @@
 # Release
 
+## 2.6.3
+
+- Convert native monochrome Wi-Fi QR pixels to bounded SVG geometry, preserving the code and quiet zone while coloring both modules and background for each palette.
+- Keep the QR square on older Cast browsers, stack HVAC details within each room card, distribute voice examples across their space, and remove the hosts footer prompt.
+- Add optional authenticated, expiring display measurements to presenter heartbeats, with no screen text or QR content.
+- Show Spotify album covers through a bounded, track-checked HA media proxy; clear them when playback, session, or freshness changes.
+- Include the light-on-dark QR palette, simpler typography and climate columns, and a single configurable welcome line.
+- Name the Alexa-facing switch Guest Screen; the stable HA entity ID and control guards are unchanged.
+
 ## 2.6.2
 
 - Include the latest guest standby screen: lamp and home name, without the off-state clock or prompt.

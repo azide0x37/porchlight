@@ -946,8 +946,7 @@ function renderSettings() {
         <p class="form-note">Home Assistant can send the guest Wi-Fi along with its presentation; when it does, those details take precedence on the TV and the Wi-Fi fields below are only the fallback.</p>
         <label><span>Enable guest screen</span><input type="checkbox" name="enabled" ${guest.enabled ? "checked" : ""}></label>
         <label><span>Home name</span><input name="home_name" value="${escapeHtml(guest.home_name || "")}" maxlength="60" autocomplete="off" placeholder="Botanical"></label>
-        <label><span>Welcome line</span><input name="welcome" value="${escapeHtml(guest.welcome || "")}" maxlength="200" autocomplete="off"></label>
-        <label><span>Subtitle</span><input name="title" value="${escapeHtml(guest.title || "")}" maxlength="120" autocomplete="off"></label>
+        <label><span>Welcome line</span><input name="welcome" value="${escapeHtml(guest.welcome || "")}" maxlength="200" autocomplete="off" placeholder="Welcome to {home}, make yourself at home" title="{home} is replaced with the home name"></label>
         <label><span>Fallback Wi-Fi name</span><input name="ssid" value="${escapeHtml(guestWifi.ssid || "")}" maxlength="32" autocomplete="off" placeholder="Leave blank to rely on Home Assistant"></label>
         <label><span>Security</span><select name="security">
           <option value="WPA" ${guestWifi.security !== "nopass" ? "selected" : ""}>WPA2 / WPA3 password</option>
@@ -1030,7 +1029,6 @@ function guestPayload(form) {
     enabled: form.elements.enabled.checked,
     home_name: form.elements.home_name.value,
     welcome: form.elements.welcome.value,
-    title: form.elements.title.value,
     ssid: form.elements.ssid.value,
     security: form.elements.security.value,
     hidden: form.elements.hidden.checked,

@@ -17,6 +17,7 @@ from .config import load_config, load_env_file
 from .guest import GuestState, MAX_PAYLOAD, load_guest_config
 from .guest_web import GuestScreenServer
 from .guest_wifi import GuestWifi
+from .guest_artwork import GuestArtwork
 from .settings import validate_host, validate_port, validate_topic_part
 
 MAX_FRAME = MAX_PAYLOAD * 6 + 2048  # JSON escaping in mosquitto_sub %j.
@@ -183,11 +184,15 @@ def main():
         adapter = GuestMQTT(state, settings, config.state_dir / "guest", stop)
         adapter.options()
         wifi_thread = None
+        artwork_thread = None
         if settings.get("GUEST_HA_URL"):
             if (config.config_dir / "guest.env").stat().st_mode & 0o077:
                 raise ValueError("guest_env_permissions")
             state.wifi_provider = GuestWifi(settings, state, stop)
             wifi_thread = threading.Thread(target=state.wifi_provider.run, daemon=True)
+            if local.get("allowed_spotify_entities"):
+                state.artwork_provider = GuestArtwork(settings, state, stop)
+                artwork_thread = threading.Thread(target=state.artwork_provider.run, daemon=True)
         if args.check:
             print("guest configuration valid; UI and live acceptance pending")
             return 0
@@ -198,6 +203,8 @@ def main():
         thread.start()
         if wifi_thread:
             wifi_thread.start()
+        if artwork_thread:
+            artwork_thread.start()
         try:
             adapter.run()
         finally:
@@ -207,6 +214,8 @@ def main():
             thread.join(timeout=5)
             if wifi_thread:
                 wifi_thread.join(timeout=5)
+            if artwork_thread:
+                artwork_thread.join(timeout=5)
         return 0
     except (OSError, ValueError, TypeError, KeyError):
         # Never echo config values or exception strings containing credentials.

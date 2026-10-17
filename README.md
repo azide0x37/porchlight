@@ -247,8 +247,8 @@ listener answers 404 for the guest surface and renders never copy it into
 The screen is a 10-foot kiosk composition for a 16:9 TV: one CSS unit is 1% of
 the frame height, so 1280x720, 1920x1080, and 3840x2160 render the same layout
 inside a 5% overscan margin. It shows the guest Wi-Fi as a locally generated QR
-code (vendored `qrcode-generator`, MIT; byte mode, EC level M, about 47% of the
-screen height) or, when Home Assistant is the source, a QR image proxied by the
+code (vendored `qrcode-generator`, MIT; byte mode, EC level M, about 60% of the
+screen height, drawn as light modules on the dark card by the household's choice) or, when Home Assistant is the source, a QR image proxied by the
 guest service from the same origin. By the household's choice the network name
 and password never appear on the TV; the screen shows the code alone. It also shows
 up to three Alexa examples each for lights, music, and blinds, and read-only
@@ -263,10 +263,12 @@ navigations such as the nightly self-refresh; browsers without the API get the
 same DOM swap without animation, and `prefers-reduced-motion` disables it. The
 palette follows the time of day (morning, afternoon, evening, night).
 
-Native UniFi QR images blend their white pixels into the same warm tile color as
-locally generated codes. The black modules, source quiet zone, and image payload
-remain intact; no credential extraction or additional QR copy is required. The
-rendered native PNG decodes to the original synthetic payload in all four palettes.
+Native UniFi QR images are converted from bounded monochrome pixels into SVG
+geometry. The original modules and quiet zone are preserved without decoding the
+credentials. CSS colors the modules and background with the same light-on-dark
+palette as locally generated codes. Explicit SVG dimensions keep the code square
+on Cast browsers without CSS `aspect-ratio`. Rendered screenshots decode to the
+original synthetic payload in all four palettes.
 
 All of the screen's asset and API paths are relative, so the guest service can
 sit behind an HTTPS reverse proxy at the origin root or under a path prefix; the
@@ -297,9 +299,9 @@ SSID label in Porchlight Settings. That label does not alter the QR payload.
 The
 dashboard Settings view edits `/etc/porchlight/guest.json` (home name, fallback
 Wi-Fi name, security, password, hidden flag, welcome copy, voice phrases, climate
-allowlist, enable flag) through `/api/setup/guest`. The optional home name (for
-example "Botanical") appears in the screen's greeting, Wi-Fi lead, footer, neutral
-screen, and window title. Every write is validated with the
+allowlist, enable flag) through `/api/setup/guest`. The welcome line may contain `{home}`; the optional home name (for
+example "Botanical") fills it and also appears in the footer, the standby
+screen, and the window title. Every write is validated with the
 backend's own loader on a mode-0600 temp file before it replaces the live file,
 the response never echoes the password, a new access token is shown exactly
 once, and the allowlisted `restart_guest` setup action restarts the service.
@@ -311,6 +313,18 @@ when none is playing. Allow its entity ID in Settings → Spotify players (for t
 tenant, `media_player.spotify_alexander_templeton`). The guest receiver validates
 the bounded title, artist, album, source, duration, and position; idle/unavailable
 players have no card. Artwork tokens are excluded from the snapshot.
+
+Album covers use the existing private HA connection and the fixed, authenticated
+media-player proxy for the allowlisted Spotify player. Porchlight checks track
+metadata before and after fetching a bounded PNG/JPEG, keeps it in memory, and
+serves it through the authenticated, no-store `../api/guest/spotify-art` endpoint.
+The screen clears artwork on track changes, session changes, stale data, and OFF.
+HA image URLs and tokens never reach the screen or MQTT.
+
+An optional authenticated `../api/guest/display` diagnostic reports the current
+presenter's bounded viewport, QR dimensions, overflow labels, browser version,
+and CSS support. It expires with the presenter heartbeat and contains no screen
+text, Wi-Fi payload, or URL.
 
 Spotify's public API and HA integration do not expose Jam invitations or whether
 a Jam is still open. Start Guest Mode, copy **Spotify → Jam → Invite → Share link**,
@@ -582,8 +596,8 @@ This writes:
 | README self-certifies compliance | PASS | this table |
 | guest backend / `T2C5.local-sidecar-bridge` | PASS (backend); live MQTT verified | `porchlight-guest.service`, 16 KiB MQTT schema, 45-second expiry, authenticated restricted API, session acknowledgements, owner-only config and lifecycle tests; separate HA/guest broker accounts and a fresh OFF snapshot verified after deployment; guest screen ships on the same listener (next row) |
 | guest TV screen is restricted and fail-closed | PASS | `src/porchlight/guest_web.py` allowlists `/guest/` assets on the guest listener only; the admin listener returns 404 for `/guest*` and `/api/guest*`; the screen hides credentials after 45 s without a fresh poll; dashboard writes to `guest.json` are validated by `load_guest_config` and kept 0600; `tests/test_guest_screen.py` |
-| guest HA / Alexa / TV acceptance | PARTIAL | HA configuration check, Alexa exposure, idempotent ON, and OFF cancellation verified; cold Vizio wake through DashCast reaches a matching active presenter heartbeat in 20.9 s; operator confirms the full screen; spoken Alexa and camera coexistence remain untested; see `docs/workstreams/notes/2026-10-17-backend-reply-to-fable.md` |
-| guest media and native Wi-Fi proxy | PASS (local); live HA QR fetch verified | Spotify player allowlist, session-bound Jam expiry, authenticated PNG endpoint with explicit application identity, redirect refusal, stale/off rejection, secret masking and removal; live authenticated native image fetch and physical QR rendering verified; phone scan remains untested; `tests/test_guest_media.py`, `tests/test_guest_screen.py` |
-| tests current | PASS | `make test`: 112 combined backend, UI, and infrastructure tests plus shell checks and staged install/doctor; 11 HVAC template fixtures; cooling and idle/range chips fit the three-room 1280×720 preview; themed native QR screenshots decode in all four palettes; fixed display-hook guard and commissioning persistence checks; live loopback MQTT outage/reconnect smoke passed |
-| package builds | PASS | `make package DIST=/tmp/porchlight-deploy-2.6.2` includes the latest standby screen, themed native QR, guest backend, preserved infrastructure features, HA package, docs, and tests; GitHub release publication remains separate |
-| infrastructure health is scoped and freshness-aware | PASS (local); provider acceptance pending | 26 infrastructure tests pass in the 112-test combined suite, including HTTP transport contracts; existing provider configuration is preserved. Authenticated full-fleet acceptance remains separate. |
+| guest HA / Alexa / TV acceptance | PARTIAL | HA configuration check, idempotent ON, and OFF cancellation verified; Guest Screen naming is prepared, but the HA Cloud account has no subscription and manual Alexa setup is deferred by the owner; cold Vizio wake through DashCast reaches a matching active presenter heartbeat in 20.9 s; operator confirms the full screen; spoken Alexa and camera coexistence remain untested; see `docs/workstreams/notes/2026-10-17-backend-reply-to-fable.md` |
+| guest media and native image proxies | PASS (local); live HA source fetches verified | Spotify player allowlist, session-bound Jam expiry, authenticated QR and album-art endpoints, fixed HA paths, bounded raster validation, track-race rejection, no-store responses, stale/off rejection, secret masking and removal; QR geometry conversion preserves source pixels without decoding credentials; phone scan remains untested; `tests/test_guest_media.py`, `tests/test_guest_artwork.py`, `tests/test_guest_qr_image.py` |
+| tests current | PASS | `make test`: 126 backend, UI, and infrastructure tests plus shell checks and staged install/doctor; 11 HVAC template fixtures; three-room layouts and album covers fit at 1280×720 and 1920×1080; light-on-dark native QR screenshots decode in all four palettes; OFF removes both QR and artwork; bounded display diagnostics and track-race checks pass |
+| package builds | PASS | `make package` produces v2.6.3 with the SVG QR helper, palette and layout refinements, album-art proxy, display diagnostics, preserved infrastructure features, HA package, docs, and tests; GitHub release publication remains separate |
+| infrastructure health is scoped and freshness-aware | PASS (local); provider acceptance pending | 26 infrastructure tests pass in the 126-test combined suite, including HTTP transport contracts; existing provider configuration is preserved. Authenticated full-fleet acceptance remains separate. |

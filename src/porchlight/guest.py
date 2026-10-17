@@ -24,6 +24,28 @@ MODES = {"off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only"}
 ACTIONS = {"off", "heating", "cooling", "drying", "idle", "fan", "preheating", "defrosting"}
 
 
+def validate_display(value):
+    """Bounded layout measurements only; no screen text, URLs, or QR content."""
+    integers = {"viewport_width", "viewport_height", "overflow_width", "overflow_height", "qr_width", "qr_height", "chrome_major"}
+    numbers = {"pixel_ratio", "font_px"}
+    flags = {"css_min", "css_aspect_ratio"}
+    if not isinstance(value, dict) or set(value) != integers | numbers | flags | {"version", "overflow"}:
+        raise ValueError("invalid_display")
+    if not isinstance(value["version"], str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,24}", value["version"]):
+        raise ValueError("invalid_display")
+    if any(type(value[k]) is not int or not 0 <= value[k] <= 8192 for k in integers):
+        raise ValueError("invalid_display")
+    if any(type(value[k]) not in (int, float) for k in numbers):
+        raise ValueError("invalid_display")
+    if not 0.25 <= value["pixel_ratio"] <= 8 or not 0 <= value["font_px"] <= 120 or any(type(value[k]) is not bool for k in flags):
+        raise ValueError("invalid_display")
+    overflow = value["overflow"]
+    if (not isinstance(overflow, list) or len(overflow) > 8
+            or any(k not in ("welcome", "voice", "comfort", "spotify", "foot", "zone", "wifi", "qr-stage") for k in overflow)):
+        raise ValueError("invalid_display")
+    return {**value, "overflow": list(overflow)}
+
+
 def strict_json(raw: bytes) -> dict:
     if not raw or len(raw) > MAX_PAYLOAD:
         raise ValueError("payload_size")
@@ -178,6 +200,8 @@ class GuestState:
         self.last_error = None
         self.rejected = 0
         self.wifi_provider = None
+        self.artwork_provider = None
+        self.display = None
         jam = config.get("spotify_jam")
         expiry = datetime.fromisoformat(jam["expires_at"].replace("Z", "+00:00")).timestamp() if jam else 0
         remaining = expiry - self.wall()
@@ -197,6 +221,7 @@ class GuestState:
                 return False
             new_session = not self.fresh() or not self.data or data["session_id"] != self.data["session_id"] or data["enabled"] != self.data["enabled"]
             if new_session:
+                self.display = None
                 self.presentation_id = secrets.token_urlsafe(24)
                 self.ack_deadline = 0.0
                 self.started = self.monotonic()
@@ -210,6 +235,7 @@ class GuestState:
         with self.lock:
             self.transport = False
             self.deadline = self.ack_deadline = 0.0
+            self.display = None
 
     def fresh(self):
         return bool(self.transport and self.data and self.monotonic() < self.deadline and self.wall() - self.timestamp < FRESH_SECONDS)
@@ -251,16 +277,26 @@ class GuestState:
             spotify = self.data.get("spotify")
             result["spotify"] = ({**spotify, "jam": jam_for_session(self.config.get("spotify_jam"), self.data["session_id"], self.wall()) if self.monotonic() < self.jam_deadline else None}
                                  if spotify else None)
+            if result["spotify"] and self.artwork_provider:
+                result["spotify"].update(self.artwork_provider.view(self.presentation_id))
             return result
 
     def heartbeat(self, payload: dict):
         with self.lock:
-            if set(payload) != {"session_id", "presentation_id", "visible"} or type(payload["visible"]) is not bool:
+            if set(payload) - {"display"} != {"session_id", "presentation_id", "visible"} or type(payload["visible"]) is not bool:
                 raise ValueError("invalid_heartbeat")
             if not self.status()["enabled"] or payload["session_id"] != self.data["session_id"] or payload["presentation_id"] != self.presentation_id:
                 raise ValueError("inactive_session")
+            display = validate_display(payload["display"]) if "display" in payload else None
+            self.display = display if payload["visible"] else None
             self.ack_deadline = self.monotonic() + ACK_SECONDS if payload["visible"] else 0.0
             return self.status()
+
+    def display_view(self):
+        with self.lock:
+            # Kept out of MQTT status and the presentation; authenticated read only.
+            return {"display": {**self.display, "overflow": list(self.display["overflow"])}
+                    if self.display and self.status()["status"] == "active" else None}
 
 
 class GuestHandler(BaseHTTPRequestHandler):
@@ -308,11 +344,33 @@ class GuestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             self.close_connection = True
-        elif self.path in ("/api/guest", "/api/guest/status"):
+        elif self.path == "/api/guest/spotify-art":
+            if not self.authorized():
+                self.reply(401, {"error": "unauthorized"})
+                return
+            state = self.server.state
+            with state.lock:
+                presentation_id = state.presentation_id
+                artwork = state.artwork_provider.read(presentation_id) if state.status()["enabled"] and state.artwork_provider else None
+            if not artwork:
+                self.reply(404, {"error": "artwork_unavailable"})
+                return
+            body, content_type, identity = artwork
+            self.send_response(200)
+            for key, value in {"Content-Type": content_type, "Content-Length": str(len(body)),
+                               "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                               "X-Porchlight-Presentation": presentation_id, "X-Porchlight-Artwork": identity,
+                               "Referrer-Policy": "no-referrer", "Connection": "close"}.items():
+                self.send_header(key, value)
+            self.end_headers()
+            self.wfile.write(body)
+            self.close_connection = True
+        elif self.path in ("/api/guest", "/api/guest/status", "/api/guest/display"):
             if not self.authorized():
                 self.reply(401, {"error": "unauthorized"})
             else:
-                self.reply(200, self.server.state.view() if self.path == "/api/guest" else self.server.state.status())
+                state = self.server.state
+                self.reply(200, state.view() if self.path == "/api/guest" else state.display_view() if self.path == "/api/guest/display" else state.status())
         else:
             self.reply(404, {"error": "not_found"})
 
@@ -324,7 +382,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         else:
             try:
                 length = int(self.headers.get("Content-Length", "0"))
-                if not 0 < length <= 512 or self.headers.get("Transfer-Encoding") or self.headers.get_content_type() != "application/json":
+                if not 0 < length <= 1024 or self.headers.get("Transfer-Encoding") or self.headers.get_content_type() != "application/json":
                     raise ValueError("invalid_body")
                 self.reply(200, self.server.state.heartbeat(strict_json(self.rfile.read(length))))
             except (ValueError, OSError):

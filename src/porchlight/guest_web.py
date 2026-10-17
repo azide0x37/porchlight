@@ -15,6 +15,8 @@ import json
 import re
 import secrets
 import signal
+import struct
+import zlib
 import threading
 import time
 from datetime import datetime, timezone
@@ -37,6 +39,7 @@ SCREEN_FILES = {
     "/guest/guest.css": "guest/guest.css",
     "/guest/guest.js": "guest/guest.js",
     "/guest/arrive.js": "guest/arrive.js",
+    "/guest/qr-image.js": "guest/qr-image.js",
     "/guest/vendor/qrcode-generator.js": "guest/vendor/qrcode-generator.js",
     "/icon-round.png": "icon-round.png",
     "/icon.svg": "icon.svg",
@@ -140,7 +143,7 @@ PREVIEW_CONFIG = {
     "schema_version": 1,
     "enabled": True,
     "allowed_spotify_entities": ["media_player.spotify_preview"],
-    "welcome": "Welcome — make yourself at home",
+    "welcome": "Welcome to {home}, make yourself at home",
     "home_name": "Botanical",
     "wifi": {"ssid": "Porchlight Guest", "security": "WPA", "password": "lantern-on-the-porch", "hidden": False},
     "alexa": {
@@ -227,11 +230,48 @@ def synthetic_presentation(enabled: bool, session_id: str, tick: int) -> bytes:
     }
     if enabled:
         payload["spotify"] = {
-            "id": "media_player.spotify_preview", "state": "playing", "title": "A little music for your stay",
-            "artist": "Porchlight preview", "album": None, "source": "Living room",
+            "id": "media_player.spotify_preview", "state": "playing", "title": "Blue in Green",
+            "artist": "Miles Davis", "album": "Kind of Blue", "source": "Living room",
             "duration": 240, "position": 30,
         }
     return json.dumps(payload).encode("utf-8")
+
+
+PREVIEW_ARTWORK_ID = "0a1b2c3d4e5f60718293a4b5"
+
+
+def synthetic_cover_png(size: int = 512) -> bytes:
+    """A warm gradient square with a soft disc: obviously synthetic album art for the preview."""
+    rows = []
+    centre, radius = size * 0.62, size * 0.28
+    for y in range(size):
+        row = bytearray([0])
+        for x_ in range(size):
+            t = (x_ + y) / (2 * size)
+            r, g_, b = int(216 - 120 * t), int(128 - 60 * t), int(60 + 30 * t)
+            d = ((x_ - centre) ** 2 + (y - size * 0.4) ** 2) ** 0.5
+            if d < radius:
+                glow = 1 - d / radius
+                r, g_, b = min(255, int(r + 60 * glow)), min(255, int(g_ + 70 * glow)), min(255, int(b + 50 * glow))
+            row += bytes((r, g_, b))
+        rows.append(bytes(row))
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+    header = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(b"".join(rows), 6)) + chunk(b"IEND", b"")
+
+
+class PreviewArtwork:
+    """Stands in for the Home Assistant artwork provider with one generated cover."""
+
+    def __init__(self) -> None:
+        self.png = synthetic_cover_png()
+
+    def view(self, presentation_id: str) -> dict:
+        return {"artwork_image": "../api/guest/spotify-art", "artwork_id": PREVIEW_ARTWORK_ID}
+
+    def read(self, presentation_id: str):
+        return (self.png, "image/png", PREVIEW_ARTWORK_ID)
 
 
 class PreviewFeeder(threading.Thread):
@@ -356,6 +396,7 @@ class PreviewServer(GuestScreenServer):
 
 def run_preview(host: str, port: int, scenario: str, fixture: str | None = None) -> int:
     state = GuestState(json.loads(json.dumps(PREVIEW_CONFIG)))
+    state.artwork_provider = PreviewArtwork()
     stop = threading.Event()
     feeder = PreviewFeeder(state, scenario, stop)
     if fixture:

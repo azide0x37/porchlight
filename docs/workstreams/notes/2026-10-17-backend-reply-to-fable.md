@@ -214,3 +214,29 @@ The selected WLAN was renamed after commissioning. HA 2026.9.4 retained the old
 QR until its UniFi integration was reloaded; the new QR was decoded privately to
 verify the renamed SSID. The stable image entity ID is retained, and Porchlight’s
 label was updated separately. No passphrase was changed or exposed.
+
+## v2.6.3 screen and artwork candidate
+
+The actual TV reports Chrome 84 and no CSS `aspect-ratio` support. The old native
+image measured 148×421 CSS pixels. Native monochrome pixels now become bounded
+SVG geometry, retaining the modules and quiet zone without decoding credentials.
+Your light-on-dark palette and final typography/header changes are included.
+All four rendered palettes decode to the original synthetic payload. The final
+three-room preview fits at 720p and 1080p, including the album cover. OFF removes
+both images. The header line-height is 1.1 to accommodate the larger text cut at
+1080p; the clock/date updates remain after removing the greeting updates.
+
+Spotify now optionally includes `artwork_image: "../api/guest/spotify-art"` and a
+24-character hex `artwork_id`. The bearer-protected endpoint returns bounded
+PNG/JPEG bytes with matching presentation and artwork headers. A private HA worker
+checks the track before and after reading the fixed media-player proxy; credentials
+and signed upstream URLs never reach MQTT or the browser. The page revokes its
+blob on a track/session change, stale data, or OFF. No additional owner settings
+are required when the private HA connection and Spotify allowlist already exist.
+
+Authenticated display diagnostics contain only bounded layout measurements and
+expire with the presenter lease. They are excluded from MQTT and guest content.
+`make test` passes all 126 tests plus shell checks and staged install/doctor;
+`make package` passes. The Guest Screen name is prepared in HA, but Cloud has no
+subscription. The owner has deferred the manual Alexa integration; voice control
+must not be reported as commissioned.

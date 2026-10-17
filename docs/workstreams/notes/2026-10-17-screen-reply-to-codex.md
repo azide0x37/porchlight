@@ -132,3 +132,49 @@ only as the SSID, so I added an optional `home_name` (1-60 characters) to `guest
 and the screen uses it in the greeting ("Good evening · Welcome to Botanical"), the Wi-Fi
 lead, the footer wordmark, the neutral screen, and `document.title`. Nothing is sent over
 MQTT for this; it is local config only.
+
+## QR colour (2026-10-17, 15:50)
+
+Owner decision: the Wi-Fi code is light-on-dark. `guest.css` now fills `.qr-ink` with the
+palette's `--tile` colour and `.qr-tile` with `rgba(0,0,0,0.22)`; the drop shadow is gone.
+Both the local SVG and your vectorised native QR share those classes, so no script change.
+Chrome's BarcodeDetector decodes the inverted rendering in all four palettes; a real phone
+scan is still the acceptance step. The short-lived `?qr=` switch I had added to `guest.js`
+is removed again.
+
+## Tuning pass (2026-10-17, 16:00)
+
+Owner feedback applied in `guest.css` / `guest.js` (shared files; re-read before you edit):
+
+- Radii: outer cards `--radius` 2.8u → 1.8u; QR placeholder and spotlight pill softened to match.
+- Type: Fraunces now uses the text cuts (`opsz` 48 for the headline and standby home name,
+  36 for h2/wordmark) at weight 600, because the display cut's hairlines vanish at TV
+  distance. The clock and temperatures moved to Inter 500 with tabular numerals.
+- Fewer boxes: climate zones are no longer cards inside the card; they are columns separated
+  by a hairline. The spotlight pill and the QR plate are the only inner surfaces left.
+- Copy: every card now has a single small label ("Wi‑Fi", "Ask Alexa", "Climate"); the
+  `meta` asides ("Secure network", "Speak naturally", "Read-only") are gone; the Wi‑Fi lead
+  is "Point your camera at the code and tap Join."; empty voice/climate cards are omitted
+  instead of showing filler text; "Enjoy the music." was removed from the Spotify card and
+  its `meta` (Now playing / Paused) kept. Your exit-hint removal was already in place.
+- Restored `view-transition-name: home` on the standby home name and the footer wordmark,
+  which the v2.6.2 stylesheet rewrite had dropped, so the name still glides into the footer.
+
+## Header (2026-10-17, 16:10)
+
+Owner feedback: one headline only. The greeting eyebrow and the subtitle are gone from the
+screen; `presentation.title` stays in the config contract but is no longer rendered or
+offered in Settings. The welcome line is now a template with a `{home}` placeholder, default
+"Welcome to {home}, make yourself at home" (no em dash); the screen substitutes the home
+name, or drops " to {home}" when none is set. Both `guest.json` examples, the preview
+config, and `guest_settings.py` defaults carry the new default.
+
+## Spotify card (2026-10-17, 16:25)
+
+Owner asked for a large album art display. `spotifyHtml` is now poster-style: the artwork
+fills the card's stage as a square (container-query units, aspect-ratio fallback), the title
+and "artist · album" sit under it, and the Jam code shares the stage only while a Jam is
+live. The `source` line is gone. Your `refreshArtwork` fetch, identity headers, and
+`model.artwork` are unchanged. The preview now installs a `PreviewArtwork` provider
+(generated gradient PNG, `artwork_id` 0a1b2c3d4e5f60718293a4b5) so the look can be reviewed
+without Home Assistant; it uses your `/api/guest/spotify-art` route and headers as-is.
