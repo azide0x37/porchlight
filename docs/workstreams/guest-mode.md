@@ -149,10 +149,10 @@ stop the guest service, and restore/remove only this HA package. Preserve guest
 configuration and existing scanner MQTT topics. Remove only this feature's
 retained `/guest/requested` and `/guest/availability` state if needed.
 
-Live commissioning on 2026-10-17 passed HA configuration validation, Alexa
-exposure, repeated-ON session preservation, OFF cancellation, and cold Vizio
-wake to `ui_pending`. Botanical's native UniFi QR image is enabled and renders
-in HA. The backend package is not yet installed on Calliope's v2.5.0 release.
+Commissioning must verify HA configuration, Alexa exposure, repeated-ON session
+preservation, OFF cancellation, cold TV wake, and the selected Wi-Fi QR image.
+Keep the guest service disabled until authenticated MQTT and the HTTPS display
+route are configured. Deployment receipts belong in private operator records.
 See [the backend reply to Fable](notes/2026-10-17-backend-reply-to-fable.md)
 for the adapter decision, 11 HVAC fixtures, service restart semantics, and
 remaining UI/voice/QR commissioning.
