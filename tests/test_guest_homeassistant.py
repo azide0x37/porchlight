@@ -156,8 +156,7 @@ class HomeAssistantGuestContractTest(unittest.TestCase):
             with self.subTest(ready=ready, adapter=adapter, dashboard=dashboard, view=view):
                 rendered = self.environment.from_string(guard).render(
                     is_state=lambda entity, state: ready,
-                    states=lambda entity: dashboard if entity.endswith("dashboard_path") else view,
-                    has_service=lambda domain, service: adapter and (domain, service) == ("script", "porchlight_guest_open_display"),
+                    states=lambda entity: ("off" if adapter else "unknown") if entity == "script.porchlight_guest_open_display" else dashboard if entity.endswith("dashboard_path") else view,
                 )
                 self.assertEqual(rendered.strip(), str(blocked))
         dispatch = next(step for step in sequence if "choose" in step)

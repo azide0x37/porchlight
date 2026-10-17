@@ -220,7 +220,7 @@ script:
              states('input_text.porchlight_guest_session') == session }}
       - if: >-
           {{ not is_state('input_boolean.porchlight_guest_ui_ready', 'on') or
-             (not has_service('script', 'porchlight_guest_open_display') and
+             (states('script.porchlight_guest_open_display') not in ['on', 'off'] and
               (not (states('input_text.porchlight_guest_dashboard_path') | regex_match('^[a-z0-9][a-z0-9_-]{0,99}$')) or
                not (states('input_text.porchlight_guest_view_path') | regex_match('^[a-z0-9][a-z0-9_-]{0,99}$')))) }}
         then:
@@ -238,7 +238,7 @@ script:
       # A fixed, operator-owned script supports an alternate webpage receiver.
       # Its private display URL stays in HA, never in helper states or MQTT.
       - choose:
-          - conditions: "{{ has_service('script', 'porchlight_guest_open_display') }}"
+          - conditions: "{{ states('script.porchlight_guest_open_display') in ['on', 'off'] }}"
             sequence:
               - action: script.porchlight_guest_open_display
                 continue_on_error: true
