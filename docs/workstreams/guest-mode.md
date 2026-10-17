@@ -3,17 +3,24 @@
 Status: **staged, not deployed**. Prepared 2026-10-17 from `main` at
 `bb34c44d4081bf446aa4412c2971454a121d4457` (v2.4.0). Resume integration when
 MacbookPro is available. This change adds a design and configuration starter;
-the appliance receiver, guest screen, and TV presentation adapter are not built.
+the appliance receiver, guest screen, and automation wiring to the Home Assistant
+TV display integration remain to be implemented.
 
 ## Intended experience
 
-“Alexa, turn on Guest Mode” activates a Home Assistant switch, turns on the
-Vizio TV, and shows a Porchlight welcome screen containing:
+“Alexa, turn on Guest Mode” activates a Home Assistant switch. The triggered
+Home Assistant automation calls the TV display integration to turn on the Vizio
+TV and show a Porchlight welcome screen containing:
 
 - A scannable guest Wi-Fi connection QR code, network name, and manual join help.
 - Short, verified Alexa examples for the actual lights and music devices.
 - Each selected HVAC zone's current temperature, target setpoint or low/high
   range, mode, operating action, and freshness. HVAC is read-only in this feature.
+
+**Confirmed display path:** Alexa → Home Assistant guest-mode automation →
+Home Assistant TV display integration → Porchlight guest screen on the TV.
+The display path is decided. When MacbookPro returns, inspect the integration's
+actual entity/target, action, and required guest-view parameters to wire the call.
 
 “Alexa, turn off Guest Mode” hides the guest content. The initial policy leaves
 the TV powered on and returns its guest presenter to a neutral screen. Powering
@@ -42,13 +49,14 @@ flowchart LR
   A[Alexa: Guest Mode] --> S[HA MQTT switch]
   S --> C[HA exact ON/OFF handler]
   C --> H[HA requested-mode helper]
-  H --> T[HA: wake Vizio and select presenter]
+  H --> T[HA automation: call TV display integration]
   H --> P[HA: limited presentation snapshot]
   HVAC[Selected HA climate entities] --> P
   P --> M[MQTT guest presentation topic]
   M --> R[New Porchlight guest receiver]
   W[Local guest Wi-Fi settings] --> R
   R --> G[Dedicated guest screen on TV]
+  T --> G
   G --> ACK[Presentation acknowledgement / freshness]
 ```
 
@@ -64,7 +72,7 @@ screen. Add a separate diagnostic status for `starting`, `active`, `degraded`,
 `off`, or `unavailable`. `active` requires a current browser/presenter heartbeat,
 not just a successful MQTT publish or a TV power-on state. Tie acknowledgements
 to the current mode session so an old acknowledgement cannot mark a new session
-active. Surface TV wake, input/cast, and Porchlight errors independently.
+active. Surface TV wake, HA display-integration, and Porchlight errors independently.
 
 ### Proposed MQTT contract
 
@@ -89,7 +97,7 @@ Use a monotonic local receipt deadline as well as the sender timestamp. After
 45 seconds without a valid heartbeat, hide the QR and mark HVAC unavailable.
 The browser must also enforce freshness if its connection to Porchlight drops.
 
-An OFF state must clear visible credentials promptly even if the TV adapter
+An OFF state must clear visible credentials promptly even if the TV integration
 fails. Never queue a delayed TV wake for a stale session. A Porchlight reconnect
 may recover the current guest display from the next live snapshot, but must not
 power-cycle the TV. Home Assistant restart defaults mode and commissioning to
@@ -134,10 +142,12 @@ example heating/idle) are different fields.
 
 - [x] Inspect current appliance architecture and identify missing MQTT receiver.
 - [x] Stage HA switch/automation starter, local content example, and sample data.
+- [x] Confirm that the Alexa-triggered HA automation calls the HA TV display integration.
 - [ ] **G0 — inventory on MacbookPro.** Find the actual checkout, read its current
   `AGENTS.md`, preserve dirty work, compare with this branch, and confirm the
   running Porchlight version, HA version, MQTT base topic/node ID/birth-will
-  settings, TV entity, climate entities, Alexa exposure method, and display path.
+  settings, TV display integration target/action, climate entities, and Alexa
+  exposure method.
 - [ ] **G1 — receiver and state.** Build a systemd-owned subscriber with explicit
   topics, reconnect/backoff, Last Will, schema validation, bounded atomic state
   writes, expiry, and session-aware status. Add mocks for disconnect, invalid
@@ -147,8 +157,9 @@ example heating/idle) are different fields.
   generation, dedicated guest page/data access, freshness handling, a browser
   heartbeat, and inactive view. Verify scanner renders cannot clobber its state.
 - [ ] **G3 — HA/TV integration.** Adapt the starter to the real HA version and
-  entities; implement the TV presenter; confirm bounded wake/input retries and
-  cancellation after OFF. Validate config in HA before loading it. Keep the
+  entities; wire the Alexa-triggered automation to the HA TV display integration
+  with its required guest-view parameters. Confirm bounded wake/display retries
+  and cancellation after OFF. Validate config in HA before loading it. Keep the
   commissioning gate OFF until G1–G3 have been verified.
 - [ ] **G4 — Alexa and household acceptance.** Expose only the guest-mode switch
   with Alexa name `Guest Mode` using the existing HA Cloud or manual Smart Home
@@ -173,7 +184,7 @@ Record these installation-specific values locally, not in a public PR:
 | Required value | How to resolve |
 | --- | --- |
 | Vizio media-player entity and network wake | Test HA integration; Vizio documentation requires Quick Start rather than Eco Mode for network power-on. Confirm this model supports it. |
-| Presenter and guest URL reachability | Choose an existing HDMI browser/kiosk, a supported cast receiver, or another confirmed display path. `media_player.turn_on` does not navigate to a website. Generic `play_media` of an HTML URL is not assumed to work. |
+| HA TV display integration call | The display path is confirmed. Inspect the configured integration's entity/target, action, and guest-view parameters; invoke it from the Alexa-triggered HA automation and verify the guest screen appears. |
 | HVAC entities and units | Inspect selected `climate.*` states/attributes and the HA unit system. Start with one zone, then expand the projection explicitly. |
 | Guest SSID/security/password | Enter locally from the guest-network settings. Keep out of issues, logs, screenshots, demos, and Git. |
 | Alexa lights/music names | Test each phrase against the actual Echo/group configuration. The example phrases are unverified placeholders. |
@@ -181,18 +192,20 @@ Record these installation-specific values locally, not in a public PR:
 
 Resume prompt: “Continue the guest-mode workstream in
 `docs/workstreams/guest-mode.md`. Inspect local changes and actual HA/Porchlight
-configuration first. Complete G0, then implement G1–G5 using the staged contract.
-The starter is not deployed, its TV adapter is intentionally incomplete, and no
-real guest credentials have been collected.” This document does not create an
-automatic watcher or scheduled resume task.
+configuration first. The Alexa-triggered automation will call the Home Assistant
+TV display integration; inspect its target/action and guest-view parameters.
+Complete G0, then implement G1–G5 using the staged contract. The starter is not
+deployed, its HA TV display call is not yet wired, and no real guest credentials
+have been collected.” This document does not create an automatic watcher or
+scheduled resume task.
 
 ### Acceptance matrix
 
 | Scenario | Required observation |
 | --- | --- |
-| Alexa ON with TV off | One TV wake, selected presenter, current guest page and scannable Wi-Fi QR. Target: visible within 30 seconds; set the final budget after measuring the hardware. |
-| Alexa ON with TV already on / repeated ON | Same requested state; no repeated input changes, wake loop, or new session. |
-| Alexa OFF during TV startup | Pending activation is cancelled; QR clears; no delayed wake/input change. |
+| Alexa ON with TV off | The HA automation calls the TV display integration; one TV wake, current guest page and scannable Wi-Fi QR. Target: visible within 30 seconds; set the final budget after measuring the hardware. |
+| Alexa ON with TV already on / repeated ON | Same requested state; no repeated display calls, wake loop, or new session. |
+| Alexa OFF during TV startup | Pending activation is cancelled; QR clears; no delayed wake/display call. |
 | Two setpoint types | Single target and low/high range display correctly with units, current temperature, mode and action. |
 | HA/Porchlight/MQTT outage | Unavailable diagnostic; QR hidden at expiry; HVAC marked unavailable, never falsely current. |
 | Malformed or stale MQTT message | Rejected; does not extend the last valid state's lifetime. |

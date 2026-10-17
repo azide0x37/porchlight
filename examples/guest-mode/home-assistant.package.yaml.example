@@ -2,7 +2,9 @@
 # Read docs/workstreams/guest-mode.md before adapting this into HA packages.
 # Requires the future Porchlight guest receiver and guest-only web surface.
 # Replace the entity IDs, MQTT node/base topic, HA birth/will topic, units,
-# labels, and TV presenter for the actual installation. No credentials here.
+# labels, and HA TV display integration call for the actual installation.
+# Confirmed path: Alexa -> HA automation -> HA TV display integration.
+# No credentials here.
 
 input_boolean:
   porchlight_guest_mode_ready:
@@ -43,20 +45,21 @@ mqtt:
 
 script:
   porchlight_guest_present_on_tv:
-    alias: Porchlight guest TV adapter — commissioning required
+    alias: Porchlight guest HA TV display — configuration required
     mode: restart
     sequence:
       - stop: >-
-          TV adapter is not implemented. Replace this guard only after mapping
-          the Vizio entity and a working browser/kiosk or supported cast path.
+          The Home Assistant TV display integration call is not yet mapped.
+          Confirm its entity/target, action, and guest-view parameters, then
+          replace this guard with that call.
         error: true
       # Implement a bounded, cancellable sequence here:
       # 1. Confirm requested mode and commissioning are still ON.
-      # 2. media_player.turn_on the confirmed Vizio entity if needed.
+      # 2. Use the configured HA integration to turn on the Vizio TV if needed.
       # 3. Wait up to 30 seconds for the TV to be on; report timeout explicitly.
-      # 4. Recheck mode/session, select the confirmed input, open /guest/ on the
-      #    actual presenter, then wait for a matching presentation heartbeat.
-      # Do not assume media_player.play_media can display arbitrary HTML URLs.
+      # 4. Recheck mode/session and invoke the HA TV display integration's action
+      #    with its required Porchlight guest-view parameters. The Alexa-triggered
+      #    automation calls this script. Wait for a matching display heartbeat.
       # Report failures as guest diagnostics; never mark the display active
       # solely because the TV turned on. OFF cancels this script below.
 
