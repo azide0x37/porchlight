@@ -117,7 +117,8 @@ exposure behavior. Voice discovery and spoken acceptance require the actual Echo
 
 ON is idempotent: repeated ON preserves the session and does not repeat the TV
 sequence. OFF is serialized, cancels pending TV activation, and publishes a fresh
-OFF snapshot. Vizio wake is attempted once, with a 30-second wait and three-second
+OFF snapshot. Vizio wake is attempted once, with a 75-second wait (covering its
+30-second power-state polling interval) and three-second
 settling delay. A session/commissioning check precedes Cast. While UI readiness
 is OFF, TV diagnostics report `ui_pending` after successful wake. Otherwise the
 script calls HA Cast once and waits up to 30 seconds for a matching presenter.
@@ -136,7 +137,7 @@ The template harness supplies HA-like functions; runtime validation in the actua
 tenant is separate. `make package DIST=/tmp/porchlight-guest-package` includes the
 backend, unit, defaults, HA package, examples, and this handoff.
 
-A real temporary loopback Mosquitto smoke test verifies retained replay rejection,
+A real temporary loopback Mosquitto smoke test (`uv run python tests/guest_mqtt_smoke.py`) verifies retained replay rejection,
 live ON/OFF, broker loss/reconnect, and graceful offline shutdown. Full guest UI,
 QR rendering and phone joins, actual household voice commands, physical screen
 visibility, and display coexistence remain UI/commissioning acceptance work.

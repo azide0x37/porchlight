@@ -181,7 +181,9 @@ script:
       - wait_template: >-
           {{ is_state('media_player.visio_tv_2', 'on') and
              states('media_player.visio_tv') not in ['unknown', 'unavailable'] }}
-        timeout: "00:00:30"
+        # Vizio reports power through a 30-second coordinator poll. Allow boot
+        # and two polls instead of incorrectly timing out after one interval.
+        timeout: "00:01:15"
         continue_on_timeout: true
       - if: "{{ not wait.completed }}"
         then:
