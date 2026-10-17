@@ -162,6 +162,37 @@ References: [HA template switch](https://www.home-assistant.io/integrations/temp
 [Nabu Casa Alexa exposure](https://support.nabucasa.com/hc/en-us/articles/25619363899677-Configuring-Amazon-Alexa-to-work-with-Home-Assistant),
 [Mosquitto subscriber](https://mosquitto.org/man/mosquitto_sub-1.html).
 
+## Spotify and native UniFi QR extensions
+
+Schema 1 accepts an optional `spotify` object only while enabled. Its exact fields
+are `id`, `state` (`playing` or `paused`), `title`, `artist`, `album`, `source`,
+`duration`, and `position`. The media entity must appear in local
+`allowed_spotify_entities`; text is limited to 256 characters and numeric times
+to 0–86400 seconds. The HA template selects a playing Spotify integration entity
+before a paused one. It omits the object when idle. No artwork URL, OAuth token,
+queue command, or playback control is accepted.
+
+The view adds `spotify.jam` only for a host-supplied invite matching the current
+session, bounded by both wall and monotonic expiry. The owner-facing Settings
+form binds a new link to fresh receiver state for four hours. Ending Guest Mode
+or starting another session hides it. Hosts must clear invitations when ending
+a Jam early: neither HA nor Spotify's public API reports Jam status or invitations.
+
+The native HA QR proxy uses verified HTTPS and a token in 0600 `guest.env`.
+Owner settings are available at `/api/setup/guest-ha`; responses expose only a
+token-present flag. The worker reads exactly the configured `image.*` entity,
+rejects redirects and non-PNG/oversized images, and discards responses from an old
+presentation. `/api/guest/wifi-qr` requires the guest bearer and fresh enabled
+state. The browser authenticates its fetch and uses a revocable blob URL.
+HA's QR takes precedence over local credentials while fresh. Polling at both
+hops is 15 seconds; failures clear the cached image. Bad HA authentication stops
+retries until settings are corrected and the service restarts.
+
+Sources: [HA Spotify implementation](https://github.com/home-assistant/core/blob/2026.9.4/homeassistant/components/spotify/media_player.py),
+[Spotify queue API](https://developer.spotify.com/documentation/web-api/reference/add-to-queue),
+[Spotify Jam invitations](https://support.spotify.com/cg-en/article/jam/),
+[HA UniFi images](https://www.home-assistant.io/integrations/unifi/#image).
+
 ## Cross-agent notes
 
 - [2026-10-17 guest screen handoff (Claude → Codex)](notes/2026-10-17-guest-screen-handoff-to-codex.md):

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import secrets
 import signal
 import threading
@@ -53,7 +54,7 @@ SCREEN_FONTS = frozenset(
 # The page carries no inline scripts or styles; the QR code is built into inline SVG by the
 # bundled library, and all data comes from the same-origin guest API.
 SCREEN_CSP = (
-    "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; "
+    "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob:; "
     "connect-src 'self'; base-uri 'none'; form-action 'none'"
 )
 STATIC_CACHE = "public, max-age=604800"
@@ -133,21 +134,17 @@ class GuestScreenServer(GuestHTTPServer):
 
 PREVIEW_TOKEN = "preview-token-not-a-secret-0000000000"
 PREVIEW_SCENARIOS = ("active", "off", "stale", "cycle")
+FIXTURE_DIR = Path(__file__).resolve().parents[2] / "examples" / "guest-mode" / "fixtures"
+FIXTURE_NAME = re.compile(r"^[a-z_]{1,40}$")
 PREVIEW_CONFIG = {
     "schema_version": 1,
     "enabled": True,
+    "allowed_spotify_entities": ["media_player.spotify_preview"],
     "welcome": "Welcome — make yourself at home",
     "wifi": {"ssid": "Porchlight Guest", "security": "WPA", "password": "lantern-on-the-porch", "hidden": False},
     "alexa": {
-        "lights": [
-            "Alexa, turn on the guest room lights.",
-            "Alexa, dim the guest room lights to 30 percent.",
-        ],
-        "music": [
-            "Alexa, play jazz in the living room.",
-            "Alexa, set the living room volume to 3.",
-            "Alexa, stop music in the living room.",
-        ],
+        "lights": ["Alexa, turn all lights to sunset.", "Alexa, turn kitchen lights to white."],
+        "music": ["Alexa, play jazz in the living room.", "Alexa, stop music in the living room."],
         "blinds": ["Alexa, close blind 50%."],
     },
     "presentation": {
@@ -156,8 +153,39 @@ PREVIEW_CONFIG = {
         "exit_policy": "neutral_screen_keep_tv_on",
     },
     "access_token": PREVIEW_TOKEN,
-    "allowed_climate_entities": ["climate.guest_room", "climate.living_room"],
+    # The synthetic zones plus the three zones the household's Home Assistant package emits,
+    # so the committed fixtures under examples/guest-mode/fixtures replay unchanged.
+    "allowed_climate_entities": [
+        "climate.guest_room",
+        "climate.living_room",
+        "climate.living_room_thermostat",
+        "climate.bedroom_ac",
+        "climate.kitchen_ac",
+    ],
 }
+
+
+def fixture_path(name: str) -> Path:
+    if not FIXTURE_NAME.fullmatch(name):
+        raise ValueError("unknown fixture")
+    path = FIXTURE_DIR / f"presentation.{name}.json"
+    if not path.is_file():
+        raise ValueError("unknown fixture")
+    return path
+
+
+def fixture_names() -> list[str]:
+    if not FIXTURE_DIR.is_dir():
+        return []
+    return sorted(p.name[len("presentation."):-len(".json")] for p in FIXTURE_DIR.glob("presentation.*.json"))
+
+
+def fixture_presentation(path: Path, session_id: str) -> bytes:
+    """Replay a committed fixture as a live snapshot: fresh timestamp and session, same zones."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["generated_at"] = datetime.now(timezone.utc).isoformat()
+    data["session_id"] = session_id
+    return json.dumps(data).encode("utf-8")
 
 
 def synthetic_presentation(enabled: bool, session_id: str, tick: int) -> bytes:
@@ -196,6 +224,12 @@ def synthetic_presentation(enabled: bool, session_id: str, tick: int) -> bytes:
         "session_id": session_id,
         "hvac": zones if enabled else [],
     }
+    if enabled:
+        payload["spotify"] = {
+            "id": "media_player.spotify_preview", "state": "playing", "title": "A little music for your stay",
+            "artist": "Porchlight preview", "album": None, "source": "Living room",
+            "duration": 240, "position": 30,
+        }
     return json.dumps(payload).encode("utf-8")
 
 
@@ -208,6 +242,7 @@ class PreviewFeeder(threading.Thread):
         self.stop = stop
         self.lock = threading.Lock()
         self.scenario = scenario
+        self.fixture: Path | None = None
         self.session_id = "preview-" + secrets.token_hex(4)
         self.tick = 0
         self.phase_started = time.monotonic()
@@ -217,6 +252,16 @@ class PreviewFeeder(threading.Thread):
             raise ValueError("unknown preview scenario")
         with self.lock:
             self.scenario = scenario
+            self.fixture = None
+            self.session_id = "preview-" + secrets.token_hex(4)
+            self.tick = 0
+            self.phase_started = time.monotonic()
+
+    def set_fixture(self, name: str) -> None:
+        path = fixture_path(name)
+        with self.lock:
+            self.scenario = "fixture"
+            self.fixture = path
             self.session_id = "preview-" + secrets.token_hex(4)
             self.tick = 0
             self.phase_started = time.monotonic()
@@ -243,7 +288,9 @@ class PreviewFeeder(threading.Thread):
     def run(self) -> None:
         while not self.stop.is_set():
             phase = self.effective()
-            if phase == "active":
+            if phase == "fixture" and self.fixture is not None:
+                self.state.receive(fixture_presentation(self.fixture, self.session_id))
+            elif phase == "active":
                 self.state.receive(synthetic_presentation(True, self.session_id, self.tick))
             elif phase == "off":
                 self.state.receive(synthetic_presentation(False, self.session_id, self.tick))
@@ -256,13 +303,14 @@ class PreviewFeeder(threading.Thread):
 
 PREVIEW_INDEX = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Porchlight guest screen preview</title><link rel="stylesheet" href="/guest/guest.css"></head>
+<title>Porchlight guest screen preview</title><link rel="stylesheet" href="guest/guest.css"></head>
 <body class="preview-body"><main class="preview">
-<div class="lamp"><img src="/icon-round.png" alt=""></div>
+<div class="lamp"><img src="icon-round.png" alt=""></div>
 <h1>Hosting Guests preview</h1>
 <p>Synthetic data only. The real screen is opened by Home Assistant on the TV with its private access link.</p>
-<p><a class="preview-link" href="/guest/#t=%(token)s">Open the guest screen</a></p>
-<p class="preview-scenarios">Scenario: <a href="/preview/scenario/active">active</a> · <a href="/preview/scenario/off">off</a> · <a href="/preview/scenario/stale">stale</a> · <a href="/preview/scenario/cycle">cycle</a></p>
+<p><a class="preview-link" href="guest/#t=%(token)s">Open the guest screen</a></p>
+<p class="preview-scenarios">Scenario: <a href="preview/scenario/active">active</a> \u00b7 <a href="preview/scenario/off">off</a> \u00b7 <a href="preview/scenario/stale">stale</a> \u00b7 <a href="preview/scenario/cycle">cycle</a></p>
+<p class="preview-scenarios">Home Assistant fixtures: %(fixtures)s</p>
 </main></body></html>
 """
 
@@ -271,7 +319,8 @@ class PreviewHandler(GuestScreenHandler):
     def do_GET(self) -> None:  # noqa: N802
         path = self.path.split("?", 1)[0]
         if path == "/":
-            body = (PREVIEW_INDEX % {"token": PREVIEW_TOKEN}).encode("utf-8")
+            links = " \u00b7 ".join(f'<a href="preview/fixture/{name}">{name}</a>' for name in fixture_names()) or "none found"
+            body = (PREVIEW_INDEX % {"token": PREVIEW_TOKEN, "fixtures": links}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -282,10 +331,13 @@ class PreviewHandler(GuestScreenHandler):
             self.wfile.write(body)
             self.close_connection = True
             return
-        if path.startswith("/preview/scenario/"):
-            scenario = path[len("/preview/scenario/"):]
+        if path.startswith("/preview/scenario/") or path.startswith("/preview/fixture/"):
+            kind, name = path[len("/preview/"):].split("/", 1)
             try:
-                self.server.feeder.set_scenario(scenario)
+                if kind == "scenario":
+                    self.server.feeder.set_scenario(name)
+                else:
+                    self.server.feeder.set_fixture(name)
             except ValueError:
                 self.reply(404, {"error": "not_found"})
                 return
@@ -301,10 +353,12 @@ class PreviewServer(GuestScreenServer):
         ThreadingHTTPServer.__init__(self, address, PreviewHandler)
 
 
-def run_preview(host: str, port: int, scenario: str) -> int:
+def run_preview(host: str, port: int, scenario: str, fixture: str | None = None) -> int:
     state = GuestState(json.loads(json.dumps(PREVIEW_CONFIG)))
     stop = threading.Event()
     feeder = PreviewFeeder(state, scenario, stop)
+    if fixture:
+        feeder.set_fixture(fixture)
     server = PreviewServer((host, port), state, feeder)
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
@@ -328,10 +382,11 @@ def main() -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--scenario", choices=PREVIEW_SCENARIOS, default="active")
+    parser.add_argument("--fixture", default="", help="Replay examples/guest-mode/fixtures/presentation.<name>.json")
     args = parser.parse_args()
     if not args.preview:
         parser.error("the appliance screen is served by porchlight-guest; use --preview for synthetic data")
-    return run_preview(args.host, args.port, args.scenario)
+    return run_preview(args.host, args.port, args.scenario, args.fixture or None)
 
 
 if __name__ == "__main__":

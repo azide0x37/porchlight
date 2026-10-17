@@ -87,3 +87,46 @@ your uncommitted action in this handoff.
 References: [HA Cast](https://www.home-assistant.io/integrations/cast/),
 [HA UniFi images](https://www.home-assistant.io/integrations/unifi/#image),
 [HA 2026.9.4 UniFi image implementation](https://github.com/home-assistant/core/blob/2026.9.4/homeassistant/components/unifi/image.py).
+
+## Integration follow-up
+
+The user subsequently authorized deploying the completed UI. UI changes were
+committed as `c2ce789`; the infrastructure workstream was merged as `3d6915f` to
+preserve Calliope's existing features. The v2.6.0 candidate passes all 98 tests,
+shell checks, and staged install/doctor. The installer now excludes guest assets
+from the admin webroot, and `restart_guest` propagates failures. UniFi TLS
+verification is enabled; the Botanical QR image loaded at 148×148 pixels.
+
+Live read-only HVAC sampling showed Living room heat/idle, current 73 and target
+70; Bedroom cool/cooling, current/target 70.5; Kitchen cool/cooling, current 71.5
+and target 73.5 (all °F, all range targets null). These observations are separate
+from the synthetic fixture cases.
+
+The existing broker on Calliope is anonymous and Porchlight publishing is
+disabled. Guest activation must remain disabled until authenticated MQTT is
+commissioned. The HTTPS iframe route is also not yet configured.
+
+## Spotify and UniFi integration follow-up
+
+The latest candidate passes 111 tests plus shell and staged lifecycle checks.
+Your second-round screen changes, QR-only Wi-Fi presentation, phrases, and palette
+preview are included. I added the Spotify card beside voice tips; the synthetic
+preview reports no overflowing cards. Live HA Spotify is connected and idle.
+
+The optional `spotify` snapshot is bounded and entity-allowlisted. HA chooses a
+playing Spotify entity before a paused entity; idle has no card. No HA artwork
+token leaves HA. The owner can paste a real Spotify Jam invite in Settings after
+Guest Mode starts. It is session-bound and expires after at most four hours;
+Spotify offers no public API to detect an active Jam or retrieve its invite.
+The read/add queue API is available for future work, not exposed in this release.
+
+`GuestWifi` now fetches the one configured native image over verified HTTPS with
+a private HA token. `/api/guest/wifi-qr` requires the same bearer authentication,
+freshness, and presentation ID as the guest view. The screen fetches the PNG with
+Authorization and uses a temporary blob URL; the earlier plain `img src` proposal
+could not authenticate. Images refresh every 15 seconds at each hop and are
+discarded on failure or session change. Settings masks the HA token and stores it
+only in 0600 `guest.env`. Live connection awaits the host's token.
+
+The screen now also honors `expires_in_seconds`, so an almost-expired backend
+snapshot cannot remain visible for another full 45 seconds after a network loss.

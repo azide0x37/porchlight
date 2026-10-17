@@ -50,6 +50,7 @@
     spot: -1,
     loadedAt: Date.now(),
     transitioning: false,
+    wifiImage: null,
   };
 
   // ---------------------------------------------------------------------------
@@ -84,8 +85,12 @@
 
   // The palette follows the household's day: dawn-tinted mornings, sunlit afternoons, the
   // lamplit evening, and a dimmer, cooler late night. ?daypart=night forces one for review.
-  const DAYPART_OVERRIDE = (/[?&]daypart=(morning|afternoon|evening|night)/.exec(window.location.search) || [])[1] || "";
+  const DAYPARTS = ["morning", "afternoon", "evening", "night"];
+  const DAYPART_OVERRIDE = (/[?&]daypart=(morning|afternoon|evening|night|cycle)/.exec(window.location.search) || [])[1] || "";
+  const DAYPART_CYCLE_MS = 7000;
+  let cycleIndex = 0;
   function daypart(date) {
+    if (DAYPART_OVERRIDE === "cycle") return DAYPARTS[cycleIndex % DAYPARTS.length];
     if (DAYPART_OVERRIDE) return DAYPART_OVERRIDE;
     const hour = date.getHours();
     if (hour >= 5 && hour < 11) return "morning";
@@ -111,10 +116,13 @@
     transition(() => { root.dataset.daypart = next; });
   }
 
-  function formatTemp(value) {
+  // Home Assistant passes thermostat floats through unrounded (73.25 is real). Guests read
+  // whole degrees Fahrenheit and half degrees Celsius, matching the thermostats themselves.
+  function formatTemp(value, unit) {
     if (typeof value !== "number" || !Number.isFinite(value)) return null;
-    const half = Math.round(value * 2) / 2;
-    return Number.isInteger(half) ? String(half) : half.toFixed(1);
+    const step = unit === "\u00b0C" ? 0.5 : 1;
+    const rounded = Math.round(value / step) * step;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
   }
 
   function lengthClass(text, long, xlong) {
@@ -140,11 +148,23 @@
     blind: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M4 7.5h16M4 12h16M4 16.5h16M12 16.5v4.5"/></svg>',
   };
 
+  // A QR image is only ever loaded from this origin (the guest service proxies it); anything
+  // else is ignored so a payload can never point the TV at another host.
+  function sameOriginImage(value) {
+    if (typeof value !== "string" || !value) return "";
+    try {
+      const url = new URL(value, window.location.href);
+      return url.origin === window.location.origin ? url.pathname + url.search : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Wi-Fi QR, drawn locally from the server's WIFI: payload. The white tile and quiet zone
   // live inside the SVG so the code always stays square and contained in its stage.
   // ---------------------------------------------------------------------------
-  function qrSvg(payload) {
+  function qrSvg(payload, label = "Wi-Fi join code") {
     if (typeof window.qrcode !== "function") return "";
     try {
       if (window.qrcode.stringToBytesFuncs && window.qrcode.stringToBytesFuncs["UTF-8"]) {
@@ -167,7 +187,7 @@
         }
       }
       const size = n + quiet * 2;
-      return `<svg viewBox="${-quiet} ${-quiet} ${size} ${size}" role="img" aria-label="Wi-Fi join code">`
+      return `<svg viewBox="${-quiet} ${-quiet} ${size} ${size}" role="img" aria-label="${esc(label)}">`
         + `<rect class="qr-tile" x="${-quiet}" y="${-quiet}" width="${size}" height="${size}" rx="2.4"/>`
         + `<path class="qr-ink" d="${d}"/></svg>`;
     } catch (_) {
@@ -184,8 +204,7 @@
   }
 
   function statusPill() {
-    const now = Date.now();
-    const fresh = model.view && now - model.lastGoodAt < STALE_MS;
+    const fresh = freshView();
     if (!model.token) return `<p class="status-pill" data-tone="idle">Not linked</p>`;
     if (!fresh || (model.view && model.view.status === "unavailable")) return `<p class="status-pill" data-tone="stale">Reconnecting\u2026</p>`;
     if (model.view && model.view.enabled) {
@@ -199,7 +218,7 @@
     const now = new Date();
     const hint = HINTS[reason] || "";
     return `<section class="neutral" data-view="${esc(reason)}">
-      <div class="lamp"><img src="/icon-round.png" alt=""></div>
+      <div class="lamp"><img src="../icon-round.png" alt=""></div>
       <div class="centre">
         <p class="eyebrow greeting">${esc(greeting(now))}</p>
         ${clockHtml(now, "neutral")}
@@ -218,28 +237,23 @@
       </section>`;
     }
     const open = wifi.security === "nopass";
-    const svg = stale ? "" : qrSvg(wifi.qr_payload || "");
-    const stageHtml = stale
-      ? `<div class="qr-placeholder">Wi‑Fi details will be back in a moment.</div>`
-      : (svg || `<div class="qr-placeholder">Join by hand with the details below.</div>`);
-    const lead = stale
-      ? `<p class="lead">Reconnecting to the house. Nothing to do on your side.</p>`
-      : `<p class="lead">Point your phone’s camera at the code and tap <strong>Join</strong>.</p>`;
-    const passwordRow = open
-      ? `<div><dt>Password</dt><dd class="muted">None needed — just join.</dd></div>`
-      : `<div><dt>Password</dt><dd class="password" data-length="${lengthClass(wifi.password, 22, 40)}">${stale ? "••••••••" : esc(wifi.password)}</dd></div>`;
-    const note = wifi.hidden
-      ? `<p class="note">Hidden network: choose “Other” in your Wi‑Fi settings and type the name exactly.</p>`
-      : `<p class="note">Or join by hand from your phone’s Wi‑Fi settings.</p>`;
+    const svg = stale || typeof wifi.qr_payload !== "string" || !wifi.qr_payload ? "" : qrSvg(wifi.qr_payload);
+    const image = !stale && !svg && model.wifiImage && model.wifiImage.presentation === view.presentation_id
+      ? model.wifiImage.url : "";
+    let stageHtml;
+    if (stale) stageHtml = `<div class="qr-placeholder">Wi\u2011Fi details will be back in a moment.</div>`;
+    else if (svg) stageHtml = svg;
+    else if (image) stageHtml = `<img class="qr-image" src="${esc(image)}" alt="Wi-Fi join code">`;
+    else stageHtml = `<div class="qr-placeholder">Ask us for the Wi\u2011Fi \u2014 the code is on its way.</div>`;
+    let lead;
+    if (stale) lead = `<p class="lead">Reconnecting to the house. Nothing to do on your side.</p>`;
+    else if (open) lead = `<p class="lead">Point your phone\u2019s camera at the code and tap <strong>Join</strong>. No password needed.</p>`;
+    else lead = `<p class="lead">Point your phone\u2019s camera at the code and tap <strong>Join</strong>. The password comes along with it.</p>`;
+    // By the household's choice the network name and password never appear on the TV.
     return `<section class="card wifi">
-      <div class="card-head"><div><p class="eyebrow">Wi‑Fi</p><h2>Get online</h2></div><p class="meta">${open ? "Open network" : "Secure network"}</p></div>
+      <div class="card-head"><div><p class="eyebrow">Wi\u2011Fi</p><h2>Get online</h2></div><p class="meta">${open ? "Open network" : "Secure network"}</p></div>
       <div class="qr-stage">${stageHtml}</div>
       ${lead}
-      <dl class="creds">
-        <div><dt>Network</dt><dd class="ssid" data-length="${lengthClass(wifi.ssid, 18, 99)}">${esc(wifi.ssid)}</dd></div>
-        ${passwordRow}
-      </dl>
-      ${note}
     </section>`;
   }
 
@@ -249,9 +263,9 @@
     return `<div class="group"><h3>${icon}${esc(label)}</h3><ul class="phrases">${items}</ul></div>`;
   }
 
-  function voiceHtml(view) {
+  function voiceHtml(view, withSpotify = false) {
     const alexa = view.alexa || {};
-    const groups = groupHtml("Lights", ICONS.bulb, alexa.lights) + groupHtml("Music", ICONS.note, alexa.music) + groupHtml("Blinds", ICONS.blind, alexa.blinds);
+    const groups = groupHtml("Lights", ICONS.bulb, alexa.lights) + (withSpotify ? "" : groupHtml("Music", ICONS.note, alexa.music)) + groupHtml("Blinds", ICONS.blind, alexa.blinds);
     if (!groups) return "";
     const count = ["lights", "music", "blinds"].reduce((total, key) => total + Math.min(3, (alexa[key] || []).length), 0);
     return `<section class="card voice" data-phrases="${count}">
@@ -263,19 +277,25 @@
   function zoneHtml(zone, index, stale) {
     const available = !stale && zone.available;
     const unit = zone.unit === "°C" ? "C" : "F";
-    const current = available ? formatTemp(zone.current_temperature) : null;
-    const low = available ? formatTemp(zone.target_temperature_low) : null;
-    const high = available ? formatTemp(zone.target_temperature_high) : null;
-    const target = available ? formatTemp(zone.target_temperature) : null;
+    const current = available ? formatTemp(zone.current_temperature, zone.unit) : null;
+    const low = available ? formatTemp(zone.target_temperature_low, zone.unit) : null;
+    const high = available ? formatTemp(zone.target_temperature_high, zone.unit) : null;
+    const target = available ? formatTemp(zone.target_temperature, zone.unit) : null;
     let detail = "";
-    if (low && high) detail = `<span class="target">Keeping ${esc(low)}–${esc(high)}°</span>`;
-    else if (target) detail = `<span class="target">Set to ${esc(target)}°</span>`;
+    // Some integrations publish a single setpoint alongside the range; the range wins in auto.
+    if (low && high) detail = `<span class="target">Keeping ${esc(low)}\u2013${esc(high)}\u00b0</span>`;
+    else if (target && zone.mode !== "off") detail = `<span class="target">Set to ${esc(target)}\u00b0</span>`;
+    else if (available && zone.mode === "off") detail = `<span>System is off</span>`;
     let chip = "";
     if (available && (zone.mode || zone.action)) {
-      const parts = [MODE_LABEL[zone.mode], ACTION_LABEL[zone.action]].filter(Boolean);
-      chip = `<span class="chip" data-action="${esc(zone.action || "")}">${esc(parts.join(" · "))}</span>`;
+      const modeLabel = MODE_LABEL[zone.mode];
+      const actionLabel = ACTION_LABEL[zone.action];
+      const parts = modeLabel && actionLabel && modeLabel.toLowerCase() === actionLabel.toLowerCase()
+        ? [modeLabel]
+        : [modeLabel, actionLabel].filter(Boolean);
+      chip = `<span class="chip" data-action="${esc(zone.action || "")}">${esc(parts.join(" \u00b7 "))}</span>`;
     }
-    if (!available) detail = `<span>${stale ? "Catching up…" : "Not reporting right now"}</span>`;
+    if (!available) detail = `<span>${stale ? "Catching up\u2026" : "Not reporting right now"}</span>`;
     const temp = current == null
       ? `<p class="zone-temp is-blank" data-zone="${index}">—</p>`
       : `<p class="zone-temp" data-zone="${index}">${esc(current)}°<sup>${unit}</sup></p>`;
@@ -293,6 +313,7 @@
 
   function guestView(view, stale) {
     const now = new Date();
+    const spotify = !stale && view.spotify;
     return `<section class="guest" data-view="${stale ? "stale" : "active"}">
       ${wifiHtml(view, stale)}
       <div class="main">
@@ -301,15 +322,34 @@
           <h1 class="headline">${esc(view.welcome || "Welcome")}</h1>
           <p class="subtitle">${esc(view.title || "")}</p>
         </header>
-        ${voiceHtml(view) || `<section class="card voice"><div class="card-head"><div><p class="eyebrow">Voice</p><h2>Just ask Alexa</h2></div></div><p class="lead">Ask Alexa for lights and music the way you would at home.</p></section>`}
+        <div class="social-row${spotify ? " has-spotify" : ""}">
+          ${voiceHtml(view, !!spotify) || `<section class="card voice"><div class="card-head"><div><p class="eyebrow">Voice</p><h2>Just ask Alexa</h2></div></div><p class="lead">Ask Alexa for lights and music the way you would at home.</p></section>`}
+          ${spotify ? spotifyHtml(spotify) : ""}
+        </div>
         ${comfortHtml(view, stale) || `<section class="card comfort" data-zones="0"><div class="card-head"><div><p class="eyebrow">Comfort</p><h2>Climate</h2></div></div><p class="empty">Make yourself comfortable — let us know if a room needs adjusting.</p></section>`}
       </div>
       <footer class="foot">
-        <div class="brand"><div class="lamp"><img src="/icon-round.png" alt=""></div><p class="wordmark">Porchlight</p></div>
+        <div class="brand"><div class="lamp"><img src="../icon-round.png" alt=""></div><p class="wordmark">Porchlight</p></div>
         ${statusPill()}
         <p class="exit-hint">Hosts: <em class="wake">“Alexa, turn off Guest Mode”</em> clears this screen.</p>
         <div class="time">${clockHtml(now, "guest")}</div>
       </footer>
+    </section>`;
+  }
+
+  function liveJam(spotify) {
+    const jam = spotify && spotify.jam;
+    return jam && Date.parse(jam.expires_at) > Date.now() ? jam : null;
+  }
+
+  function spotifyHtml(spotify) {
+    const jam = liveJam(spotify);
+    return `<section class="card spotify">
+      <div class="card-head"><p class="eyebrow">Spotify</p><p class="meta">${spotify.state === "playing" ? "Now playing" : "Paused"}</p></div>
+      <h2 class="track-title">${esc(spotify.title)}</h2>
+      <p class="track-artist">${esc(spotify.artist || spotify.album || "")}</p>
+      ${spotify.source ? `<p class="note">${esc(spotify.source)}</p>` : ""}
+      ${jam ? `<div class="jam-qr">${qrSvg(jam.url, "Join the Spotify Jam")}</div><p class="jam-label">Scan to join the Jam</p>` : `<p class="note spotify-note">Enjoy the music.</p>`}
     </section>`;
   }
 
@@ -318,22 +358,28 @@
   // view has not been refreshed within STALE_MS the credentials leave the screen.
   // ---------------------------------------------------------------------------
   function derive() {
-    const now = Date.now();
     if (!model.token) return { screen: "neutral", reason: "unlinked" };
     const view = model.view;
-    const fresh = !!view && now - model.lastGoodAt < STALE_MS;
+    const fresh = freshView();
     if (!view) return { screen: "neutral", reason: model.error ? "unavailable" : "boot" };
     if (!view.enabled) return { screen: "neutral", reason: fresh && view.status === "off" ? "off" : "unavailable" };
     return { screen: "guest", stale: !fresh };
   }
 
+  function freshView() {
+    const view = model.view;
+    if (!view) return false;
+    const remaining = typeof view.expires_in_seconds === "number" ? view.expires_in_seconds * 1000 : STALE_MS;
+    return Date.now() - model.lastGoodAt < Math.min(STALE_MS, Math.max(0, remaining));
+  }
+
   function renderKey(state) {
     const view = model.view || {};
     const significant = state.screen === "guest"
-      ? [view.session_id, view.presentation_id, view.welcome, view.title, view.wifi, view.alexa,
+      ? [view.session_id, view.presentation_id, view.welcome, view.title, view.wifi, model.wifiImage && model.wifiImage.url, view.alexa, view.spotify, !!liveJam(view.spotify),
          (view.hvac || []).map((zone) => [zone.id, zone.label, zone.available, zone.unit, zone.mode, zone.action,
-           formatTemp(zone.current_temperature), formatTemp(zone.target_temperature),
-           formatTemp(zone.target_temperature_low), formatTemp(zone.target_temperature_high)])]
+           formatTemp(zone.current_temperature, zone.unit), formatTemp(zone.target_temperature, zone.unit),
+           formatTemp(zone.target_temperature_low, zone.unit), formatTemp(zone.target_temperature_high, zone.unit)])]
       : [];
     return JSON.stringify([state.screen, state.reason || "", !!state.stale, model.ack, !model.token, significant]);
   }
@@ -374,6 +420,7 @@
 
   function render(force) {
     const state = derive();
+    if (state.screen !== "guest" || state.stale) clearWifiImage();
     const key = renderKey(state);
     if (!force && key === model.key) {
       tickClock();
@@ -439,11 +486,34 @@
   }
 
   let polling = false;
+  function clearWifiImage() {
+    if (model.wifiImage) URL.revokeObjectURL(model.wifiImage.url);
+    model.wifiImage = null;
+  }
+
+  async function refreshWifiImage(view) {
+    const path = view.enabled && view.wifi && sameOriginImage(view.wifi.qr_image);
+    // Only the one protected image endpoint is allowed; never put a token in an img URL.
+    if (!path || path !== new URL("../api/guest/wifi-qr", window.location.href).pathname) {
+      clearWifiImage();
+      return;
+    }
+    if (model.wifiImage && model.wifiImage.presentation === view.presentation_id && Date.now() - model.wifiImage.at < 15000) return;
+    try {
+      const response = await request("GET", path);
+      if (!response.ok || response.headers.get("Content-Type") !== "image/png" || response.headers.get("X-Porchlight-Presentation") !== view.presentation_id) throw new Error("wifi unavailable");
+      const blob = await response.blob();
+      if (blob.size > 131072 || !freshView() || model.view.presentation_id !== view.presentation_id) throw new Error("wifi expired");
+      clearWifiImage();
+      model.wifiImage = { url: URL.createObjectURL(blob), presentation: view.presentation_id, at: Date.now() };
+    } catch (_) { clearWifiImage(); }
+  }
+
   async function poll() {
     if (polling || !model.token) return;
     polling = true;
     try {
-      const response = await request("GET", "/api/guest");
+      const response = await request("GET", "../api/guest");
       if (response.status === 401) {
         model.token = "";
         try { window.sessionStorage.removeItem(TOKEN_KEY); } catch (_) { /* ignore */ }
@@ -456,6 +526,7 @@
       model.view = view;
       model.lastGoodAt = Date.now();
       model.error = null;
+      await refreshWifiImage(view);
       if (view.enabled && view.session_id && view.presentation_id) {
         await heartbeat(view);
       } else {
@@ -471,7 +542,7 @@
 
   async function heartbeat(view) {
     try {
-      const response = await request("POST", "/api/guest/heartbeat", {
+      const response = await request("POST", "../api/guest/heartbeat", {
         session_id: view.session_id,
         presentation_id: view.presentation_id,
         visible: !document.hidden,
@@ -518,6 +589,14 @@
   window.setInterval(() => render(false), 1000);
   window.setInterval(moveSpotlight, SPOTLIGHT_MS);
   window.setInterval(drift, DRIFT_MS);
+  if (DAYPART_OVERRIDE === "cycle") {
+    window.setInterval(() => {
+      if (model.transitioning) return;
+      cycleIndex += 1;
+      applyDaypart(true);
+      tickClock();
+    }, DAYPART_CYCLE_MS);
+  }
   scheduleClock();
   document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
   window.addEventListener("pageshow", (event) => { if (event.persisted) poll(); });

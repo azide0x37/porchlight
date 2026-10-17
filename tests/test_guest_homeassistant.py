@@ -70,6 +70,7 @@ def render_fixture(environment, source, enabled, zones, unit):
         guest_enabled=enabled, utcnow=lambda: FIXTURE_TIME,
         states=lambda entity: "fixture-session" if entity.startswith("input_text") else zones[entity][0],
         state_attr=lambda entity, key: zones[entity][1].get(key),
+        integration_entities=lambda _: [],
     ))
 
 
@@ -137,3 +138,20 @@ class HomeAssistantGuestContractTest(unittest.TestCase):
         self.assertFalse(self.package["input_boolean"]["porchlight_guest_ui_ready"]["initial"])
         self.assertNotIn("initial", self.package["input_boolean"]["porchlight_guest_mode_ready"])
         self.assertEqual(self.package["input_text"]["porchlight_guest_tv_status"]["initial"], "off")
+
+    def test_spotify_auto_selects_playing_before_paused_without_art_tokens(self):
+        source = self.package["script"]["porchlight_guest_publish"]["sequence"][1]["data"]["payload"]
+        zones = fixture_cases()["cool"][1]
+        for entity, state in (("media_player.a_spotify", "paused"), ("media_player.z_spotify", "playing")):
+            zones[entity] = (state, {"media_title": "Test track", "media_artist": "Test artist",
+                                    "media_duration": 240, "media_position": 30,
+                                    "entity_picture": "/secret?token=never-export"})
+        data = json.loads(self.environment.from_string(source).render(
+            guest_enabled=True, utcnow=lambda: FIXTURE_TIME,
+            states=lambda e: "fixture-session" if e.startswith("input_text") else zones[e][0],
+            state_attr=lambda e, key: zones[e][1].get(key),
+            integration_entities=lambda _: ["media_player.a_spotify", "media_player.z_spotify"],
+        ))
+        self.assertEqual(data["spotify"]["id"], "media_player.z_spotify")
+        self.assertNotIn("never-export", json.dumps(data))
+        validate_presentation(json.dumps(data).encode(), set(ZONE_IDS), FIXTURE_TIME.timestamp(), [data["spotify"]["id"]])

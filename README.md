@@ -237,7 +237,8 @@ landing page is reachable.
 
 `porchlight-guest.service` also serves the guest TV screen at `/guest/` on its
 own listener (`GUEST_WEB_HOST:GUEST_WEB_PORT`, default `127.0.0.1:8766`). Home
-Assistant opens `http://<guest-host>:8766/guest/#t=<access_token>` on the TV; the
+Assistant Cast uses a Lovelace webpage card pointing to an HTTPS reverse proxy
+for `/guest/#t=<access_token>` on the TV; the
 token travels in the URL fragment, never in a query string or log, and the page
 moves it into session storage and scrubs the address bar. The admin dashboard
 listener answers 404 for the guest surface and renders never copy it into
@@ -248,8 +249,8 @@ the frame height, so 1280x720, 1920x1080, and 3840x2160 render the same layout
 inside a 5% overscan margin. It shows the guest Wi-Fi as a locally generated QR
 code (vendored `qrcode-generator`, MIT; byte mode, EC level M, about 47% of the
 screen height) or, when Home Assistant is the source, a QR image proxied by the
-guest service from the same origin, the network name and (when known) password
-in plain text for manual joins,
+guest service from the same origin. By the household's choice the network name
+and password never appear on the TV; the screen shows the code alone. It also shows
 up to three Alexa examples each for lights, music, and blinds, and read-only
 climate cards with current temperature, setpoint or range, mode, and action.
 While guest mode is off it shows a neutral clock screen. State changes, the
@@ -265,26 +266,47 @@ chosen display adapter is a Home Assistant Cast dashboard whose Lovelace
 `webpage` card frames the screen (see `docs/workstreams/notes/`).
 
 The screen fails closed: it polls `../api/guest` every five seconds, heartbeats
-after each render, and after 45 seconds without a successful poll it hides the
-QR and password and blanks climate even if the backend is still running. A 401
+after each render, and honors the backend's remaining freshness deadline (at
+most 45 seconds). At expiry it hides the QR, Spotify, and Jam, and blanks climate
+even if the backend is still running. A 401
 forgets the token and shows the neutral screen.
 
-Guest Wi-Fi details sent by Home Assistant with the presentation take precedence
-on the TV; the local configuration below is the fallback when none arrive. The
+The optional authenticated HA image proxy takes precedence over local Wi-Fi.
+Configure its HTTPS origin, access token, `image.botanical_qr_code`, and Botanical
+SSID under **Settings → Home Assistant Wi-Fi QR**. The token is kept in mode-0600
+`guest.env`. The receiver fetches only that image, refuses redirects, validates
+bounded PNG content, and serves it through the bearer-protected guest API while
+the same presentation is fresh and enabled. It refreshes every 15 seconds; the
+screen refreshes its image every 15 seconds. No HA image token URL or Wi-Fi
+password is published over MQTT. Local credentials remain an optional fallback.
+The
 dashboard Settings view edits `/etc/porchlight/guest.json` (fallback Wi-Fi name,
 security, password, hidden flag, welcome copy, voice phrases, climate allowlist,
 enable flag) through `/api/setup/guest`. Every write is validated with the
 backend's own loader on a mode-0600 temp file before it replaces the live file,
 the response never echoes the password, a new access token is shown exactly
 once, and the allowlisted `restart_guest` setup action restarts the service.
-`PYTHONPATH=src python3 -m porchlight.guest_web --preview` serves the screen
+`PYTHONPATH=src uv run python -m porchlight.guest_web --preview` serves the screen
 with synthetic data for design review.
+
+The HA package auto-selects a playing Spotify integration player, or a paused one
+when none is playing. Allow its entity ID in Settings → Spotify players (for this
+tenant, `media_player.spotify_alexander_templeton`). The guest receiver validates
+the bounded title, artist, album, source, duration, and position; idle/unavailable
+players have no card. Artwork tokens are excluded from the snapshot.
+
+Spotify's public API and HA integration do not expose Jam invitations or whether
+a Jam is still open. Start Guest Mode, copy **Spotify → Jam → Invite → Share link**,
+and paste it into the dashboard's Jam field. Porchlight binds that host-supplied
+invite to the current session for at most four hours. Clear it when ending a Jam
+early. Playback alone never creates a Jam QR. Read/add queue APIs are available
+for a future guest request interface; this release adds no queue controls.
 
 ## Home Assistant MQTT Bridge
 
 Guest Mode now has an opt-in backend and a [Home Assistant package](homeassistant/porchlight_guest.yaml)
 for an Alexa-presentable switch, cancellable Vizio activation, limited HVAC
-snapshots, and presentation diagnostics. The TV screen is described under Guest Screen below. See the
+snapshots, and presentation diagnostics. The TV screen is described under Guest Screen above. See the
 [backend API and commissioning handoff](docs/workstreams/guest-mode.md); the
 separate listener defaults to loopback and never serves administrator routes.
 
@@ -531,7 +553,7 @@ This writes:
 | scan irregularities are recorded | PASS | `src/porchlight/store.py`, `src/porchlight/render.py`, `tests/test_store_merge.py` |
 | static dashboard is rendered | PASS | `bin/install.sh` refreshes static web assets; the browser polls current JSON every minute and surfaces refresh failures |
 | AI analysis sidecar is opt-in and asynchronous | PASS | the hourly timer and versioned semantic fingerprint are regression-tested; scan timestamps and run history cannot trigger model calls, while host, endpoint, irregularity, model, and tier changes do; stale snapshots and upstream failures are explicit in JSON, logs, and exit status |
-| local web dashboard and setup API are systemd-owned | PASS | `src/porchlight-web`, `src/porchlight/web.py` no-store headers and `/api/setup/*`, `systemd/porchlight-web.service` |
+| local web dashboard and setup API are systemd-owned | PASS | `src/porchlight-web`, `src/porchlight/web.py` no-store headers and `/api/setup/*`, `systemd/porchlight-web.service`; installer enables the allowlisted setup-action path on every host so settings saves restart their services |
 | no-SSH appliance setup is optional | PASS | `bin/install.sh --appliance`, `bin/setup-ap.sh`, `bin/setup-apply.sh`, `systemd/porchlight-setup-ap.service`, `systemd/porchlight-setup-apply.path` |
 | appliance health is written | PASS | `src/porchlight-health`, `systemd/porchlight-health.timer`, and `tests/test_health.py` enforce scan freshness |
 | installer idempotent | PASS | `make test` runs staged install; installer only creates default config when missing |
@@ -544,6 +566,7 @@ This writes:
 | guest backend / `T2C5.local-sidecar-bridge` | PASS (backend) | `porchlight-guest.service`, 16 KiB MQTT schema, 45-second expiry, authenticated restricted API, session acknowledgements, owner-only config and lifecycle tests; guest screen ships on the same listener (next row) |
 | guest TV screen is restricted and fail-closed | PASS | `src/porchlight/guest_web.py` allowlists `/guest/` assets on the guest listener only; the admin listener returns 404 for `/guest*` and `/api/guest*`; the screen hides credentials after 45 s without a fresh poll; dashboard writes to `guest.json` are validated by `load_guest_config` and kept 0600; `tests/test_guest_screen.py` |
 | guest HA / Alexa / TV acceptance | PARTIAL | HA configuration check, Alexa exposure, idempotent ON, OFF cancellation, and cold Vizio wake to `ui_pending` verified; spoken Alexa and rendered TV acceptance pending; see `docs/workstreams/notes/2026-10-17-backend-reply-to-fable.md` |
-| tests current | PASS (backend) | `make test`: 60 backend tests plus shell checks and staged install/doctor; 11 committed HVAC template fixtures; live loopback MQTT outage/reconnect smoke passed; concurrent UI changes require their own integrated run |
-| package builds | PASS | `make package DIST=/tmp/porchlight-guest-package` includes the guest backend, HA package, docs and tests; no release publication or replacement of v2.5.0 deployment |
-| infrastructure health is scoped and freshness-aware | PASS (local); live pending | 26 infrastructure tests pass, including production HTTP transport contracts; isolated package passes. October 7 full suite: 68/69 pass; lifecycle doctor fails because this environment lacks mosquitto_pub. Installed provider versions and authenticated live fleet acceptance remain pending. |
+| guest media and native Wi-Fi proxy | PASS (local); live credential setup pending | Spotify player allowlist, session-bound Jam expiry, authenticated PNG endpoint, redirect refusal, stale/off rejection, secret masking and removal; `tests/test_guest_media.py`, `tests/test_guest_screen.py` |
+| tests current | PASS | `make test`: 111 combined backend, UI, and infrastructure tests plus shell checks and staged install/doctor; 11 HVAC template fixtures; live loopback MQTT outage/reconnect smoke passed |
+| package builds | PASS | `make package DIST=/tmp/porchlight-deploy-2.6.0` includes the guest backend, screen, preserved infrastructure features, HA package, docs, and tests; GitHub release publication remains separate |
+| infrastructure health is scoped and freshness-aware | PASS (local); provider acceptance pending | 26 infrastructure tests pass in the 111-test combined suite, including HTTP transport contracts; existing provider configuration is preserved. Authenticated full-fleet acceptance remains separate. |

@@ -24,6 +24,9 @@ from porchlight.guest_web import (  # noqa: E402
     PREVIEW_TOKEN,
     SCREEN_FILES,
     GuestScreenServer,
+    fixture_names,
+    fixture_path,
+    fixture_presentation,
     screen_file,
     synthetic_presentation,
 )
@@ -64,10 +67,14 @@ class ScreenAllowlistTest(unittest.TestCase):
         js = (WEBROOT / "guest/guest.js").read_text(encoding="utf-8")
         vendor = (WEBROOT / "guest/vendor/qrcode-generator.js").read_text(encoding="utf-8")
         self.assertIn("Porchlight - Hosting Guests", index)
-        self.assertIn("/guest/guest.css?v=2.4.0", index)
-        self.assertIn("/guest/guest.js?v=2.4.0", index)
-        self.assertIn("/guest/vendor/qrcode-generator.js?v=2.4.0", index)
-        self.assertIn("/guest/arrive.js?v=2.4.0", index)
+        # Relative asset and API paths keep the screen working behind a reverse proxy prefix.
+        self.assertIn("./guest.css?v=2.6.0", index)
+        self.assertIn("./guest.js?v=2.6.0", index)
+        self.assertIn("./vendor/qrcode-generator.js?v=2.6.0", index)
+        self.assertIn("./arrive.js?v=2.6.0", index)
+        self.assertNotIn('href="/', index)
+        self.assertNotIn('src="/', index)
+        self.assertNotIn('url("/', css)
         self.assertIn("pagereveal", (WEBROOT / "guest/arrive.js").read_text(encoding="utf-8"))
         self.assertNotIn("<style", index)
         self.assertNotIn("onload=", index)
@@ -79,8 +86,10 @@ class ScreenAllowlistTest(unittest.TestCase):
         self.assertIn("prefers-reduced-motion", css)
         self.assertIn("--u: min(1vh, 0.5625vw)", css)
         self.assertIn("startViewTransition", js)
-        self.assertIn('"/api/guest"', js)
-        self.assertIn('"/api/guest/heartbeat"', js)
+        self.assertIn('"../api/guest"', js)
+        self.assertIn('"../api/guest/heartbeat"', js)
+        self.assertIn("qr_image", js)
+        self.assertIn("sameOriginImage", js)
         self.assertIn("presentation_id", js)
         self.assertIn("sessionStorage", js)
         self.assertIn("STALE_MS = 45000", js)
@@ -126,7 +135,7 @@ class PreviewFeedContractTest(unittest.TestCase):
     def test_synthetic_presentation_matches_receiver_schema(self):
         allowed = set(PREVIEW_CONFIG["allowed_climate_entities"])
         for enabled in (True, False):
-            data, _ = validate_presentation(synthetic_presentation(enabled, "preview-1", 3), allowed, time.time())
+            data, _ = validate_presentation(synthetic_presentation(enabled, "preview-1", 3), allowed, time.time(), PREVIEW_CONFIG["allowed_spotify_entities"])
             self.assertEqual(data["enabled"], enabled)
             self.assertEqual(len(data["hvac"]), 2 if enabled else 0)
 
@@ -239,6 +248,44 @@ class GuestScreenServerTest(unittest.TestCase):
         self.assertNotIn("wifi", view)
         self.assertNotIn("lantern-on-the-porch", body.decode("utf-8"))
 
+    def test_wifi_image_requires_bearer_and_current_enabled_presentation(self):
+        from porchlight.guest_wifi import GuestWifi
+        provider = GuestWifi({"GUEST_HA_URL": "https://ha.example.test", "GUEST_HA_TOKEN": "private",
+                              "GUEST_WIFI_QR_ENTITY": "image.test", "GUEST_WIFI_SSID": "Test"}, self.state, threading.Event())
+        self.state.wifi_provider = provider
+        self.state.receive(synthetic_presentation(True, "test", 0))
+        provider.image = b"test-only-image"
+        provider.presentation_id = self.state.presentation_id
+        provider.deadline = time.monotonic() + 20
+        self.assertEqual(self.get("/api/guest/wifi-qr")[0], 401)
+        status, headers, body = self.get("/api/guest/wifi-qr", PREVIEW_TOKEN)
+        self.assertEqual((status, body), (200, b"test-only-image"))
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertEqual(headers["X-Porchlight-Presentation"], self.state.presentation_id)
+        self.state.disconnect()
+        self.assertEqual(self.get("/api/guest/wifi-qr", PREVIEW_TOKEN)[0], 404)
+
+
+
+class FixtureReplayTest(unittest.TestCase):
+    def test_home_assistant_fixtures_replay_through_the_receiver(self):
+        names = fixture_names()
+        self.assertIn("mixed_zones", names)
+        self.assertIn("heat_cool", names)
+        for name in names:
+            with self.subTest(fixture=name):
+                state = GuestState(json.loads(json.dumps(PREVIEW_CONFIG)))
+                self.assertTrue(state.receive(fixture_presentation(fixture_path(name), "replay-1")), state.last_error)
+                view = state.view()
+                expected = json.loads(fixture_path(name).read_text(encoding="utf-8"))
+                self.assertEqual(view["enabled"], expected["enabled"])
+                if expected["enabled"]:
+                    self.assertEqual(len(view["hvac"]), 3)
+                    self.assertEqual([zone["label"] for zone in view["hvac"]], ["Living room", "Bedroom", "Kitchen"])
+        with self.assertRaises(ValueError):
+            fixture_path("../etc/passwd")
+        with self.assertRaises(ValueError):
+            fixture_path("missing")
 
 
 class GuestSettingsTest(unittest.TestCase):

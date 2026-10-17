@@ -144,10 +144,29 @@ script:
                 }] %}
               {% endfor %}
             {% endif %}
-            {{ {'schema_version': 1, 'enabled': guest_enabled | bool,
+            {% set media = namespace(item=none) %}
+            {% if guest_enabled | bool %}
+              {% for desired in ['playing', 'paused'] %}
+                {% for entity in (integration_entities('spotify') | sort)[:8] %}
+                  {% if media.item is none and states(entity) == desired and state_attr(entity, 'media_title') %}
+                    {% set media.item = {
+                      'id': entity, 'state': desired,
+                      'title': (state_attr(entity, 'media_title') | string)[:256],
+                      'artist': (state_attr(entity, 'media_artist') | string)[:256] if state_attr(entity, 'media_artist') else none,
+                      'album': (state_attr(entity, 'media_album_name') | string)[:256] if state_attr(entity, 'media_album_name') else none,
+                      'source': (state_attr(entity, 'source') | string)[:256] if state_attr(entity, 'source') else none,
+                      'duration': state_attr(entity, 'media_duration') | float(none),
+                      'position': state_attr(entity, 'media_position') | float(none)
+                    } %}
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
+            {% endif %}
+            {% set snapshot = {'schema_version': 1, 'enabled': guest_enabled | bool,
                 'generated_at': utcnow().isoformat(),
                 'session_id': states('input_text.porchlight_guest_session'),
-                'hvac': zones.items} | to_json }}
+                'hvac': zones.items} %}
+            {{ dict(snapshot, spotify=media.item) | to_json if media.item else snapshot | to_json }}
       - action: mqtt.publish
         data:
           topic: porchlight/guest/requested

@@ -958,12 +958,27 @@ function renderSettings() {
         <label><span>Music phrases</span><textarea name="alexa_music" rows="3" placeholder="One phrase per line, up to three">${escapeHtml((guestAlexa.music || []).join("\n"))}</textarea></label>
         <label><span>Blinds phrases</span><textarea name="alexa_blinds" rows="3" placeholder="Alexa, close blind 50%.">${escapeHtml((guestAlexa.blinds || []).join("\n"))}</textarea></label>
         <label><span>Climate entities</span><input name="allowed_climate_entities" value="${escapeHtml((guest.allowed_climate_entities || []).join(", "))}" placeholder="climate.guest_room, climate.living_room" autocomplete="off"></label>
+        <label><span>Spotify players</span><input name="allowed_spotify_entities" value="${escapeHtml((guest.allowed_spotify_entities || []).join(", "))}" placeholder="media_player.spotify_account" autocomplete="off"></label>
+        <label><span>Jam invite for this visit</span><input name="spotify_jam_url" type="url" maxlength="255" placeholder="${guest.spotify_jam_set ? "Stored — blank keeps it" : "Paste Spotify → Jam → Invite link"}" autocomplete="off"></label>
+        <label><span>Remove Jam invite</span><input name="clear_spotify_jam" type="checkbox"></label>
+        <p class="form-note">Start Guest Mode before adding an invite. The Jam code lasts up to four hours and is hidden when this visit ends. Spotify does not report whether a Jam is still open; remove the invite if you end it early.</p>
         <p class="form-result" role="status">${escapeHtml(guestStatusText(guest))}</p>
         <div class="form-actions">
           <button type="submit">Save guest screen</button>
           <button type="button" data-action="rotate-guest-link">New access link</button>
         </div>
         <p class="form-result" id="guest-result" role="status"></p>
+      </form>
+      <form class="settings-form" id="guest-ha-settings">
+        <h3>Home Assistant Wi-Fi QR</h3>
+        <p class="form-note">Use the native UniFi QR image. The HA token stays on this server; the TV receives only the code while Guest Mode is active.</p>
+        <label><span>Home Assistant HTTPS address</span><input name="url" type="url" value="${escapeHtml(guest.ha?.url || "")}" placeholder="https://ha.example.com" autocomplete="off"></label>
+        <label><span>Home Assistant access token</span><input name="token" type="password" placeholder="${guest.ha?.token_set ? "Stored — blank keeps it" : "Paste a long-lived access token"}" autocomplete="off"></label>
+        <label><span>QR image entity</span><input name="wifi_qr_entity" value="${escapeHtml(guest.ha?.wifi_qr_entity || "")}" placeholder="image.botanical_qr_code" autocomplete="off"></label>
+        <label><span>Wi-Fi name</span><input name="wifi_ssid" value="${escapeHtml(guest.ha?.wifi_ssid || "")}" maxlength="32" placeholder="Botanical" autocomplete="off"></label>
+        <label><span>Disconnect Home Assistant QR</span><input name="clear_token" type="checkbox"></label>
+        <button type="submit">Save HA connection</button>
+        <p class="form-result" id="guest-ha-result" role="status"></p>
       </form>
     </section>
     <section class="section">
@@ -1019,8 +1034,11 @@ function guestPayload(form) {
     hidden: form.elements.hidden.checked,
     alexa: { lights: lines("alexa_lights"), music: lines("alexa_music"), blinds: lines("alexa_blinds") },
     allowed_climate_entities: form.elements.allowed_climate_entities.value,
+    allowed_spotify_entities: form.elements.allowed_spotify_entities.value.split(/[\s,]+/).filter(Boolean),
   };
   if (form.elements.password.value) payload.password = form.elements.password.value;
+  if (form.elements.clear_spotify_jam.checked) payload.spotify_jam_url = "";
+  else if (form.elements.spotify_jam_url.value.trim()) payload.spotify_jam_url = form.elements.spotify_jam_url.value.trim();
   return payload;
 }
 
@@ -1037,7 +1055,7 @@ function applyGuestResult(data, message) {
   const host = window.location.hostname || "porchlight.local";
   const link = `http://${host}:${guest.guest_port || 8766}/guest/#t=${token}`;
   const loopback = !guest.guest_host || guest.guest_host === "127.0.0.1" || guest.guest_host === "localhost";
-  const reach = loopback ? " porchlight-guest still listens on 127.0.0.1; set GUEST_WEB_HOST in /etc/porchlight/guest.env so the TV can reach it." : "";
+  const reach = loopback ? " The guest listener is local only. Configure an HTTPS reverse proxy to it, then use that HTTPS URL with this token fragment in the HA Cast dashboard." : "";
   setResult("#guest-result", `${message} Paste this link into the Home Assistant guest automation now; it is shown only once: ${link}${reach}`);
 }
 
@@ -1285,6 +1303,16 @@ function bindSettings() {
     }
   });
   const guestForm = document.querySelector("#guest-settings");
+  const guestHaForm = document.querySelector("#guest-ha-settings");
+  if (guestHaForm) guestHaForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      const form = guestHaForm.elements;
+      const data = await postJson("/api/setup/guest-ha", { url: form.url.value, token: form.token.value,
+        wifi_qr_entity: form.wifi_qr_entity.value, wifi_ssid: form.wifi_ssid.value, clear_token: form.clear_token.checked });
+      applyGuestResult(data, "Home Assistant QR settings saved; guest service is restarting.");
+    } catch (error) { setResult("#guest-ha-result", error.message, false); }
+  });
   if (guestForm) {
     guestForm.addEventListener("submit", async (event) => {
       event.preventDefault();

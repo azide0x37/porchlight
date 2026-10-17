@@ -7,7 +7,7 @@
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url("/fonts/inter-latin-ext.woff2") format("woff2");
+  src: url("../fonts/inter-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
@@ -15,7 +15,7 @@
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url("/fonts/inter-latin.woff2") format("woff2");
+  src: url("../fonts/inter-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
@@ -23,7 +23,7 @@
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url("/fonts/fraunces-latin-ext.woff2") format("woff2");
+  src: url("../fonts/fraunces-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
@@ -31,7 +31,7 @@
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url("/fonts/fraunces-latin.woff2") format("woff2");
+  src: url("../fonts/fraunces-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
@@ -39,7 +39,7 @@
   font-style: normal;
   font-weight: 100 800;
   font-display: swap;
-  src: url("/fonts/jetbrains-latin-ext.woff2") format("woff2");
+  src: url("../fonts/jetbrains-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
@@ -47,7 +47,7 @@
   font-style: normal;
   font-weight: 100 800;
   font-display: swap;
-  src: url("/fonts/jetbrains-latin.woff2") format("woff2");
+  src: url("../fonts/jetbrains-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
@@ -330,6 +330,17 @@ h2 { font-family: var(--font-serif); font-size: 1.9rem; line-height: 1.1; letter
   filter: drop-shadow(0 calc(var(--u) * 1.2) calc(var(--u) * 2.4) rgba(0, 0, 0, 0.35));
 }
 .qr-stage .qr-ink { fill: var(--tile-ink); shape-rendering: crispEdges; }
+.qr-stage .qr-image {
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  padding: calc(var(--u) * 1.6);
+  background: var(--tile);
+  border-radius: calc(var(--u) * 2);
+  box-shadow: 0 calc(var(--u) * 1.2) calc(var(--u) * 2.4) rgba(0, 0, 0, 0.35);
+}
 .qr-stage .qr-tile { fill: var(--tile); }
 .qr-placeholder {
   width: min(100%, calc(var(--u) * 40));
@@ -343,22 +354,26 @@ h2 { font-family: var(--font-serif); font-size: 1.9rem; line-height: 1.1; letter
   color: var(--ink-mute);
   font-size: 1.3rem;
 }
-.lead { margin: 0 0 calc(var(--u) * 1.2); font-size: 1.3rem; color: var(--ink-soft); }
+.lead { margin: 0; font-size: 1.35rem; color: var(--ink-soft); text-align: center; }
 .lead strong { color: var(--ink); font-weight: 600; }
-.creds { display: grid; gap: calc(var(--u) * 1.2); margin: 0; }
-.creds > div { display: grid; grid-template-columns: calc(var(--u) * 13) minmax(0, 1fr); align-items: baseline; gap: 1em; padding-top: calc(var(--u) * 1.2); border-top: 1px solid var(--line); }
-.creds dt { margin: 0; font-size: 1rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-mute); }
-.creds dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-.creds .ssid { font-size: 2.1rem; font-weight: 600; letter-spacing: -0.01em; }
-.creds .password { font-family: var(--font-mono); font-size: 1.9rem; font-weight: 500; letter-spacing: 0.04em; color: var(--honey); }
-.creds .password[data-length="long"] { font-size: 1.5rem; }
-.creds .password[data-length="xlong"] { font-size: 1.15rem; letter-spacing: 0.02em; }
-.creds .ssid[data-length="long"] { font-size: 1.6rem; }
-.creds .muted { color: var(--ink-mute); font-size: 1.3rem; }
-.note { margin: calc(var(--u) * 1.2) 0 0; font-size: 1.1rem; color: var(--ink-mute); }
 
 /* Right column */
 .main { grid-area: main; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--gap); }
+.social-row { display: grid; min-height: 0; min-width: 0; }
+.social-row.has-spotify { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--gap); }
+.has-spotify .card { padding: calc(var(--u) * 2); }
+.has-spotify .group { grid-template-columns: 1fr; gap: calc(var(--u) * 0.3); }
+.has-spotify .phrase { font-size: 1.15rem; }
+.has-spotify .voice .card-head .meta { display: none; }
+.spotify { overflow: hidden; view-transition-name: spotify-panel; }
+.spotify .card-head { flex-wrap: wrap; gap: 0.5em; }
+.spotify .track-title { font-size: 1.8rem; }
+.spotify .track-title, .spotify .track-artist { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.track-artist { margin: 0.45em 0 0; color: var(--ink-soft); font-size: 1.2rem; }
+.spotify-note { margin-top: auto; }
+.jam-qr { flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; padding-top: calc(var(--u) * 1); }
+.jam-qr svg { width: calc(var(--u) * 19); height: 100%; max-height: calc(var(--u) * 19); }
+.jam-label { margin: 0.5em 0 0; text-align: center; font-size: 1.05rem; color: var(--ink-soft); }
 
 .welcome { padding: 0 calc(var(--u) * 1) calc(var(--u) * 0.2); view-transition-name: welcome; }
 .welcome .headline {
@@ -435,6 +450,7 @@ h2 { font-family: var(--font-serif); font-size: 1.9rem; line-height: 1.1; letter
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--ink-soft);
+  white-space: nowrap;
 }
 .chip[data-action="heating"], .chip[data-action="preheating"] { color: #ffb783; border-color: rgba(255, 183, 131, 0.35); }
 .chip[data-action="cooling"] { color: #9fd0ff; border-color: rgba(159, 208, 255, 0.35); }

@@ -5,12 +5,11 @@
   "wifi": null,
   "alexa": {
     "lights": [
-      "Alexa, turn on the guest room lights.",
-      "Alexa, dim the guest room lights to 30 percent."
+      "Alexa, turn all lights to sunset.",
+      "Alexa, turn kitchen lights to white."
     ],
     "music": [
       "Alexa, play jazz in the living room.",
-      "Alexa, set the living room volume to 3.",
       "Alexa, stop music in the living room."
     ],
     "blinds": [

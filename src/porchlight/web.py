@@ -4,13 +4,14 @@ import argparse
 import json
 import os
 import subprocess
+import time
 from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from .config import load_config
-from .guest_settings import masked_guest_settings, update_guest_settings
+from .guest_settings import bind_jam_invite, masked_guest_settings, update_guest_ha_settings, update_guest_settings
 from .infrastructure import InfrastructureMonitor
 from .settings import (
     masked_openai_settings,
@@ -66,7 +67,12 @@ class PorchlightHTTPRequestHandler(SimpleHTTPRequestHandler):
             elif path == "/api/setup/openai/analyze":
                 self.write_json(self.server.trigger_ai_analysis())
             elif path == "/api/setup/guest":
+                payload = bind_jam_invite(payload, self.server.guest_receiver_status(), time.time())
                 settings = update_guest_settings(self.server.config.config_dir, payload)
+                self.server.request_apply("restart_guest")
+                self.write_json({"guest": self.server.guest_payload(settings)})
+            elif path == "/api/setup/guest-ha":
+                settings = update_guest_ha_settings(self.server.config.config_dir, payload)
                 self.server.request_apply("restart_guest")
                 self.write_json({"guest": self.server.guest_payload(settings)})
             elif path == "/api/setup/mqtt/test":
@@ -148,6 +154,7 @@ class PorchlightHTTPServer(ThreadingHTTPServer):
             "fresh": bool(data.get("fresh", False)),
             "error": data.get("error"),
             "generated_at": data.get("generated_at"),
+            "session_id": data.get("session_id"),
             "rejected_messages": data.get("rejected_messages"),
         }
 

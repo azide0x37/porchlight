@@ -13,6 +13,8 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from .guest_media import PLAYER, jam_for_session, validate_jam, validate_spotify
+
 MAX_PAYLOAD = 16 * 1024
 FRESH_SECONDS = 45
 ACK_SECONDS = 20
@@ -49,9 +51,9 @@ def text(value, limit=120):
     return value
 
 
-def validate_presentation(raw: bytes, allowed: set[str], now: float) -> tuple[dict, float]:
+def validate_presentation(raw: bytes, allowed: set[str], now: float, allowed_spotify=()) -> tuple[dict, float]:
     data = strict_json(raw)
-    if set(data) != {"schema_version", "enabled", "generated_at", "session_id", "hvac"}:
+    if set(data) - {"spotify"} != {"schema_version", "enabled", "generated_at", "session_id", "hvac"}:
         raise ValueError("invalid_fields")
     if type(data["schema_version"]) is not int or data["schema_version"] != 1 or type(data["enabled"]) is not bool:
         raise ValueError("invalid_version_or_mode")
@@ -69,6 +71,10 @@ def validate_presentation(raw: bytes, allowed: set[str], now: float) -> tuple[di
     zones = data["hvac"]
     if not isinstance(zones, list) or len(zones) > 8 or (not data["enabled"] and zones):
         raise ValueError("invalid_hvac")
+    if data.get("spotify") is not None:
+        if not data["enabled"]:
+            raise ValueError("disabled_spotify")
+        validate_spotify(data["spotify"], allowed_spotify)
     seen = set()
     fields = {"id", "label", "available", "unit", "mode", "action", "current_temperature",
               "target_temperature", "target_temperature_low", "target_temperature_high"}
@@ -113,6 +119,10 @@ def load_guest_config(path: Path) -> dict:
     allowed = data.get("allowed_climate_entities", [])
     if not isinstance(allowed, list) or len(allowed) > 8 or any(not isinstance(x, str) or not CLIMATE.fullmatch(x) for x in allowed):
         raise ValueError("guest_climate_allowlist")
+    players = data.get("allowed_spotify_entities", [])
+    if not isinstance(players, list) or len(players) > 8 or any(not isinstance(x, str) or not PLAYER.fullmatch(x) for x in players):
+        raise ValueError("guest_spotify_allowlist")
+    validate_jam(data.get("spotify_jam"))
     text(data.get("welcome"), 200)
     presentation = data.get("presentation", {})
     if not isinstance(presentation, dict):
@@ -165,13 +175,18 @@ class GuestState:
         self.transport = False
         self.last_error = None
         self.rejected = 0
+        self.wifi_provider = None
+        jam = config.get("spotify_jam")
+        expiry = datetime.fromisoformat(jam["expires_at"].replace("Z", "+00:00")).timestamp() if jam else 0
+        remaining = expiry - self.wall()
+        self.jam_deadline = self.monotonic() + remaining if 0 < remaining <= 4 * 3600 else 0
 
     def receive(self, payload: bytes, retained=False) -> bool:
         with self.lock:
             try:
                 if retained:
                     raise ValueError("retained_snapshot")
-                data, timestamp = validate_presentation(payload, set(self.config.get("allowed_climate_entities", [])), self.wall())
+                data, timestamp = validate_presentation(payload, set(self.config.get("allowed_climate_entities", [])), self.wall(), self.config.get("allowed_spotify_entities", []))
                 if timestamp <= self.timestamp:
                     raise ValueError("out_of_order")
             except (ValueError, TypeError) as exc:
@@ -228,6 +243,11 @@ class GuestState:
                            "alexa": self.config.get("alexa", {}), "wifi": None})
             if self.config.get("wifi"):
                 result["wifi"] = {**self.config["wifi"], "qr_payload": wifi_payload(self.config["wifi"])}
+            if self.wifi_provider:
+                result["wifi"] = self.wifi_provider.view(self.presentation_id) or result["wifi"]
+            spotify = self.data.get("spotify")
+            result["spotify"] = ({**spotify, "jam": jam_for_session(self.config.get("spotify_jam"), self.data["session_id"], self.wall()) if self.monotonic() < self.jam_deadline else None}
+                                 if spotify else None)
             return result
 
     def heartbeat(self, payload: dict):
@@ -265,6 +285,26 @@ class GuestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/healthz":
             self.reply(200, {"service": "porchlight-guest", "ui_available": False})
+        elif self.path == "/api/guest/wifi-qr":
+            if not self.authorized():
+                self.reply(401, {"error": "unauthorized"})
+                return
+            state = self.server.state
+            with state.lock:
+                presentation_id = state.presentation_id
+                body = state.wifi_provider.read(presentation_id) if state.status()["enabled"] and state.wifi_provider else None
+            if not body:
+                self.reply(404, {"error": "wifi_unavailable"})
+                return
+            self.send_response(200)
+            for key, value in {"Content-Type": "image/png", "Content-Length": str(len(body)),
+                               "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                               "X-Porchlight-Presentation": presentation_id,
+                               "Referrer-Policy": "no-referrer", "Connection": "close"}.items():
+                self.send_header(key, value)
+            self.end_headers()
+            self.wfile.write(body)
+            self.close_connection = True
         elif self.path in ("/api/guest", "/api/guest/status"):
             if not self.authorized():
                 self.reply(401, {"error": "unauthorized"})

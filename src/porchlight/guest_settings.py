@@ -13,10 +13,15 @@ import os
 import re
 import secrets
 import tempfile
+import threading
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import bool_value, load_env_file
 from .guest import load_guest_config
+from .guest_media import PLAYER, validate_jam
+from .guest_wifi import GuestWifi
+from .settings import atomic_write_env
 
 GUEST_FILE = "guest.json"
 GUEST_ENV = "guest.env"
@@ -82,6 +87,7 @@ def masked_guest_settings(config_dir: Path) -> dict[str, object]:
     alexa = data.get("alexa") if isinstance(data.get("alexa"), dict) else {}
     presentation = data.get("presentation") if isinstance(data.get("presentation"), dict) else {}
     token = data.get("access_token")
+    env = load_env_file(config_dir / GUEST_ENV)
     return {
         "configured": (config_dir / GUEST_FILE).is_file(),
         "enabled": bool(data.get("enabled") is True),
@@ -98,6 +104,10 @@ def masked_guest_settings(config_dir: Path) -> dict[str, object]:
             for category in VOICE_CATEGORIES
         },
         "allowed_climate_entities": [str(item) for item in data.get("allowed_climate_entities", []) if isinstance(item, str)],
+        "allowed_spotify_entities": [str(item) for item in data.get("allowed_spotify_entities", []) if isinstance(item, str)],
+        "spotify_jam_set": bool(data.get("spotify_jam")),
+        "ha": {"url": env.get("GUEST_HA_URL", ""), "token_set": bool(env.get("GUEST_HA_TOKEN")),
+               "wifi_qr_entity": env.get("GUEST_WIFI_QR_ENTITY", ""), "wifi_ssid": env.get("GUEST_WIFI_SSID", "")},
         "access_token_set": isinstance(token, str) and bool(TOKEN_RE.fullmatch(token)),
         **guest_listener(config_dir),
     }
@@ -209,6 +219,13 @@ def update_guest_settings(config_dir: Path, payload: dict[str, object]) -> dict[
         data["alexa"] = alexa
     if "allowed_climate_entities" in payload:
         data["allowed_climate_entities"] = climate_list(payload["allowed_climate_entities"])
+    if "allowed_spotify_entities" in payload:
+        players = payload["allowed_spotify_entities"]
+        if not isinstance(players, list) or len(players) > 8 or any(not isinstance(x, str) or not PLAYER.fullmatch(x) for x in players):
+            raise ValueError("Spotify players must be a list of at most eight media_player entity IDs")
+        data["allowed_spotify_entities"] = players
+    if "spotify_jam" in payload:
+        data["spotify_jam"] = validate_jam(payload["spotify_jam"])
     token = data.get("access_token") if isinstance(data.get("access_token"), str) else ""
     issued = None
     if bool_value(payload.get("rotate_token"), False) or (data.get("enabled") is True and not TOKEN_RE.fullmatch(token or "")):
@@ -221,3 +238,36 @@ def update_guest_settings(config_dir: Path, payload: dict[str, object]) -> dict[
     if issued:
         result["access_token_once"] = issued
     return result
+
+
+def bind_jam_invite(payload, receiver, now):
+    """Bind a host's new invite to a recent, enabled receiver session."""
+    if "spotify_jam_url" not in payload:
+        return payload
+    if not payload["spotify_jam_url"]:
+        return {**payload, "spotify_jam": None}
+    try:
+        generated = datetime.fromisoformat(receiver["generated_at"].replace("Z", "+00:00")).timestamp()
+        if not receiver.get("enabled") or not receiver.get("fresh") or not -5 <= now - generated < 45:
+            raise ValueError("inactive")
+        jam = {"url": payload["spotify_jam_url"], "session_id": receiver["session_id"],
+               "expires_at": datetime.fromtimestamp(now + 4 * 3600, timezone.utc).isoformat()}
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
+        raise ValueError("Start Guest Mode and wait for fresh receiver data before adding a Jam invite") from exc
+    return {**payload, "spotify_jam": validate_jam(jam)}
+
+
+def update_guest_ha_settings(config_dir, payload):
+    env = load_env_file(config_dir / GUEST_ENV)
+    for field, key in (("url", "GUEST_HA_URL"), ("wifi_qr_entity", "GUEST_WIFI_QR_ENTITY"), ("wifi_ssid", "GUEST_WIFI_SSID")):
+        if field in payload:
+            env[key] = str(payload[field]).strip()
+    if payload.get("token"):
+        env["GUEST_HA_TOKEN"] = str(payload["token"]).strip()
+    if bool_value(payload.get("clear_token"), False):
+        env["GUEST_HA_TOKEN"] = ""
+        env["GUEST_HA_URL"] = ""
+    if env.get("GUEST_HA_URL"):
+        GuestWifi(env, None, threading.Event())  # Validate only; never contact HA on save.
+    atomic_write_env(config_dir / GUEST_ENV, env, 0o600)
+    return masked_guest_settings(config_dir)

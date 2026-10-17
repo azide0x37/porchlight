@@ -1,5 +1,23 @@
 # Release
 
+## 2.6.0
+
+- Added the restricted guest presentation service, authenticated API, MQTT freshness
+  checks, and session acknowledgements.
+- Integrated the guest TV screen and dashboard settings, local QR rendering,
+  neutral off/stale screens, and read-only HVAC cards.
+- Added an Alexa-presentable Home Assistant switch with cancellable Vizio wake
+  and a gated HA Cast display step.
+- Preserved the v2.5.0 infrastructure dashboard and provider configuration.
+- Added an automatic read-only Spotify card and host-provided Jam invite QR,
+  bound to the current guest session with a four-hour maximum lifetime.
+- Added a bearer-protected proxy for the native HA/UniFi Wi-Fi QR image and
+  masked owner settings for its HA connection. Credentials never reach MQTT.
+- Enabled the allowlisted settings-apply path on ordinary hosts as well as
+  appliance installations, so saved guest and MQTT settings take effect.
+- Guest activation requires authenticated MQTT and a commissioned HTTPS display
+  route. The native QR proxy additionally requires an HA access token.
+
 ## 2.5.0
 
 - Added a dedicated Infrastructure page with host telemetry, service links,
