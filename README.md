@@ -254,12 +254,19 @@ and password never appear on the TV; the screen shows the code alone. It also sh
 up to three Alexa examples each for lights, music, and blinds, and read-only
 climate cards with current temperature, setpoint or range, and action. Status
 chips omit the mode and separator dot to fit the three-room TV layout.
-While guest mode is off it shows a neutral clock screen. State changes, the
+Before the first presentation arrives, and for the moment after guest mode ends,
+it shows only the lamp and home name. Home Assistant opens this screen when Guest
+Mode is on. State changes, the
 moving voice highlight, and temperature updates animate through the View
 Transitions API; `@view-transition { navigation: auto }` crossfades same-origin
 navigations such as the nightly self-refresh; browsers without the API get the
 same DOM swap without animation, and `prefers-reduced-motion` disables it. The
 palette follows the time of day (morning, afternoon, evening, night).
+
+Native UniFi QR images blend their white pixels into the same warm tile color as
+locally generated codes. The black modules, source quiet zone, and image payload
+remain intact; no credential extraction or additional QR copy is required. The
+rendered native PNG decodes to the original synthetic payload in all four palettes.
 
 All of the screen's asset and API paths are relative, so the guest service can
 sit behind an HTTPS reverse proxy at the origin root or under a path prefix; the
@@ -281,12 +288,18 @@ bounded PNG content, and serves it through the bearer-protected guest API while
 the same presentation is fresh and enabled. It refreshes every 15 seconds; the
 screen refreshes its image every 15 seconds. No HA image token URL or Wi-Fi
 password is published over MQTT. Local credentials remain an optional fallback.
+
+After renaming a UniFi network, verify the QR itself reflects the new SSID.
+[HA 2026.9.4 caches this image by passphrase](https://github.com/home-assistant/core/blob/2026.9.4/homeassistant/components/unifi/image.py),
+so an SSID-only rename may require reloading the UniFi integration. Keep the
+existing image entity ID when it still refers to the same WLAN, and update the
+SSID label in Porchlight Settings. That label does not alter the QR payload.
 The
 dashboard Settings view edits `/etc/porchlight/guest.json` (home name, fallback
 Wi-Fi name, security, password, hidden flag, welcome copy, voice phrases, climate
 allowlist, enable flag) through `/api/setup/guest`. The optional home name (for
 example "Botanical") appears in the screen's greeting, Wi-Fi lead, footer, neutral
-clock screen, and window title. Every write is validated with the
+screen, and window title. Every write is validated with the
 backend's own loader on a mode-0600 temp file before it replaces the live file,
 the response never echoes the password, a new access token is shown exactly
 once, and the allowlisted `restart_guest` setup action restarts the service.
@@ -571,6 +584,6 @@ This writes:
 | guest TV screen is restricted and fail-closed | PASS | `src/porchlight/guest_web.py` allowlists `/guest/` assets on the guest listener only; the admin listener returns 404 for `/guest*` and `/api/guest*`; the screen hides credentials after 45 s without a fresh poll; dashboard writes to `guest.json` are validated by `load_guest_config` and kept 0600; `tests/test_guest_screen.py` |
 | guest HA / Alexa / TV acceptance | PARTIAL | HA configuration check, Alexa exposure, idempotent ON, and OFF cancellation verified; cold Vizio wake through DashCast reaches a matching active presenter heartbeat in 46.9 s; operator confirms the full screen; spoken Alexa and camera coexistence remain untested; see `docs/workstreams/notes/2026-10-17-backend-reply-to-fable.md` |
 | guest media and native Wi-Fi proxy | PASS (local); live HA QR fetch verified | Spotify player allowlist, session-bound Jam expiry, authenticated PNG endpoint with explicit application identity, redirect refusal, stale/off rejection, secret masking and removal; live authenticated native image fetch and physical QR rendering verified; phone scan remains untested; `tests/test_guest_media.py`, `tests/test_guest_screen.py` |
-| tests current | PASS | `make test`: 112 combined backend, UI, and infrastructure tests plus shell checks and staged install/doctor; 11 HVAC template fixtures; cooling and idle/range chips fit the three-room 1280×720 preview; fixed display-hook guard and commissioning persistence checks; live loopback MQTT outage/reconnect smoke passed |
-| package builds | PASS | `make package DIST=/tmp/porchlight-hvac-package-check` includes the guest backend, screen, preserved infrastructure features, HA package, docs, and tests; GitHub release publication remains separate |
+| tests current | PASS | `make test`: 112 combined backend, UI, and infrastructure tests plus shell checks and staged install/doctor; 11 HVAC template fixtures; cooling and idle/range chips fit the three-room 1280×720 preview; themed native QR screenshots decode in all four palettes; fixed display-hook guard and commissioning persistence checks; live loopback MQTT outage/reconnect smoke passed |
+| package builds | PASS | `make package DIST=/tmp/porchlight-deploy-2.6.2` includes the latest standby screen, themed native QR, guest backend, preserved infrastructure features, HA package, docs, and tests; GitHub release publication remains separate |
 | infrastructure health is scoped and freshness-aware | PASS (local); provider acceptance pending | 26 infrastructure tests pass in the 112-test combined suite, including HTTP transport contracts; existing provider configuration is preserved. Authenticated full-fleet acceptance remains separate. |

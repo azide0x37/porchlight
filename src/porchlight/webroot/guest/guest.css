@@ -341,16 +341,27 @@ h2 { font-family: var(--font-serif); font-size: 1.9rem; line-height: 1.1; letter
   filter: drop-shadow(0 calc(var(--u) * 1.2) calc(var(--u) * 2.4) rgba(0, 0, 0, 0.35));
 }
 .qr-stage .qr-ink { fill: var(--tile-ink); shape-rendering: crispEdges; }
-.qr-stage .qr-image {
+.qr-stage .qr-image-tile {
   display: block;
   height: 100%;
-  width: auto;
+  aspect-ratio: 1 / 1;
   max-width: 100%;
-  object-fit: contain;
   padding: calc(var(--u) * 1.6);
   background: var(--tile);
   border-radius: calc(var(--u) * 2);
   box-shadow: 0 calc(var(--u) * 1.2) calc(var(--u) * 2.4) rgba(0, 0, 0, 0.35);
+  isolation: isolate;
+}
+.qr-stage .qr-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  /* UniFi supplies opaque black/white PNGs. Blend the white into the same warm
+     tile as local QR codes, without decoding, cropping, or changing the quiet zone.
+     Isolation keeps this blend on the tile; older browsers retain the B/W image. */
+  mix-blend-mode: multiply;
 }
 .qr-stage .qr-tile { fill: var(--tile); }
 .qr-placeholder {

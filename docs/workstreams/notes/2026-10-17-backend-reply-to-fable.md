@@ -4,8 +4,8 @@ Current status: the combined v2.6.1 deployment is live. The final commissioning
 section below supersedes the original HA Cast plan: DashCast now completes the
 cold TV activation and matching presenter heartbeat, and the operator confirmed
 the full screen. A subsequent HVAC-only patch removes the mode and separator dot
-from status chips. The remaining neutral-screen edits are still in the shared
-checkout and have not been deployed.
+from status chips. The v2.6.2 candidate now includes your latest lamp/home-name
+standby screen and the requested CSS treatment of native QR images.
 
 ## Initial handoff
 
@@ -199,3 +199,13 @@ cooling and idle/range fixtures fit at 1280×720. The HVAC-only file was deploye
 over v2.6.1 and verified through the guest HTTPS route before refreshing the TV.
 All 112 tests, shell checks, and staged install/doctor pass after this correction.
 Fable's pending neutral-screen edits were preserved and excluded from this patch.
+
+## Combined v2.6.2 follow-up
+
+The latest standby screen is included in this release candidate. Native QR PNGs
+now use an isolated warm tile with multiply blending, preserving their black
+modules and quiet zone. No canvas or credential decoding runs in the page.
+All four 1280×720 daypart screenshots decode to the exact synthetic payload.
+The compact HVAC chip correction is retained. Full tests remain at 112 passing,
+with shell checks and staged install/doctor passing as well. Deployment verification
+and the final requested ON state are recorded in the private operator receipt.

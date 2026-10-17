@@ -70,11 +70,13 @@
     preheating: "Warming up",
     defrosting: "Defrosting",
   };
-  const HINTS = {
-    off: "Say <em class=\"wake\">“Alexa, turn on Guest Mode”</em> to show Wi‑Fi and house tips here.",
-    unavailable: "Catching up with the house…",
-    unlinked: "This screen isn’t linked yet. Open it from Home Assistant’s guest link.",
-    boot: "",
+  // The TV only reaches this page once Home Assistant has turned guest mode on, so there is
+  // no "off" screen to design. Before the first presentation lands, and for the moment after
+  // guest mode ends, the page shows only the lamp and the home name; the notes below are the
+  // two diagnostics worth a line of text.
+  const NOTES = {
+    unavailable: "Catching up with the house\u2026",
+    unlinked: "This screen isn\u2019t linked yet. Open it from Home Assistant\u2019s guest link.",
   };
 
   function esc(value) {
@@ -210,7 +212,7 @@
       if (model.ack === "active") return `<p class="status-pill" data-tone="live">Live</p>`;
       return `<p class="status-pill" data-tone="sync">Syncing</p>`;
     }
-    return `<p class="status-pill" data-tone="idle">Guest mode off</p>`;
+    return "";
   }
 
   // The household's name, when the owner has set one in Settings. It travels with every
@@ -220,17 +222,12 @@
   }
 
   function neutralView(reason) {
-    const now = new Date();
-    const hint = HINTS[reason] || "";
+    const note = NOTES[reason] || "";
     const home = homeName();
     return `<section class="neutral" data-view="${esc(reason)}">
       <div class="lamp"><img src="../icon-round.png" alt=""></div>
-      <div class="centre">
-        <p class="eyebrow greeting">${esc(greeting(now))}</p>
-        ${clockHtml(now, "neutral")}
-        ${home ? `<p class="home-name">${esc(home)}</p>` : ""}
-      </div>
-      <p class="hint">${hint}</p>
+      ${home ? `<p class="home-name">${esc(home)}</p>` : ""}
+      ${note ? `<p class="hint">${note}</p>` : ""}
       ${statusPill()}
     </section>`;
   }
@@ -251,7 +248,7 @@
     let stageHtml;
     if (stale) stageHtml = `<div class="qr-placeholder">Wi\u2011Fi details will be back in a moment.</div>`;
     else if (svg) stageHtml = svg;
-    else if (image) stageHtml = `<img class="qr-image" src="${esc(image)}" alt="Wi-Fi join code">`;
+    else if (image) stageHtml = `<div class="qr-image-tile"><img class="qr-image" src="${esc(image)}" alt="Wi-Fi join code"></div>`;
     else stageHtml = `<div class="qr-placeholder">Ask us for the Wi\u2011Fi \u2014 the code is on its way.</div>`;
     let lead;
     if (stale) lead = `<p class="lead">Reconnecting to the house. Nothing to do on your side.</p>`;
@@ -366,8 +363,8 @@
     if (!model.token) return { screen: "neutral", reason: "unlinked" };
     const view = model.view;
     const fresh = freshView();
-    if (!view) return { screen: "neutral", reason: model.error ? "unavailable" : "boot" };
-    if (!view.enabled) return { screen: "neutral", reason: fresh && view.status === "off" ? "off" : "unavailable" };
+    if (!view) return { screen: "neutral", reason: model.error ? "unavailable" : "standby" };
+    if (!view.enabled) return { screen: "neutral", reason: fresh && view.status === "off" ? "standby" : "unavailable" };
     return { screen: "guest", stale: !fresh };
   }
 

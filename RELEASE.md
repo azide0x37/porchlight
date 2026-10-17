@@ -1,5 +1,12 @@
 # Release
 
+## 2.6.2
+
+- Include the latest guest standby screen: lamp and home name, without the off-state clock or prompt.
+- Keep HVAC status chips to the current action, avoiding overflow in three-room layouts.
+- Theme native UniFi Wi-Fi QR images with the guest screen palette while retaining the QR modules and quiet zone.
+- Include the commissioned fixed display hook for DashCast and restore commissioning helpers across HA restarts.
+
 ## 2.6.1
 
 - Identify native HA QR requests as Porchlight for compatibility with HTTPS gateways.

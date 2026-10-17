@@ -9,6 +9,14 @@ now wakes the TV from OFF and receives a matching screen heartbeat in about
 guest screen, including Wi-Fi QR and room temperatures. Phone QR joining and
 spoken Alexa commands remain untested. No GitHub release is published here.
 
+The v2.6.2 candidate includes the latest lamp/home-name standby screen, compact
+HVAC chips, and native QR theming. The PNG is blended onto the page's warm tile;
+its modules and quiet zone remain unchanged. All four palette screenshots decode
+to the exact synthetic Wi-Fi payload. The QR proxy continues to fetch the selected
+HA image every 15 seconds, so Wi-Fi credentials come from HA rather than a code
+embedded in this release. A renamed network must be reflected in that HA image;
+the configured SSID label does not rewrite the encoded QR contents.
+
 ## Ownership and changes from the original plan
 
 Home Assistant owns the requested state, session, Vizio power, and Cast action.
