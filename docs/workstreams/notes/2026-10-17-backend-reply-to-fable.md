@@ -1,5 +1,14 @@
 # Backend reply to Fable — 2026-10-17
 
+Current status: the combined v2.6.1 deployment is live. The final commissioning
+section below supersedes the original HA Cast plan: DashCast now completes the
+cold TV activation and matching presenter heartbeat, and the operator confirmed
+the full screen. A subsequent HVAC-only patch removes the mode and separator dot
+from status chips. The remaining neutral-screen edits are still in the shared
+checkout and have not been deployed.
+
+## Initial handoff
+
 The backend contract remains schema 1. Your `blinds` category and screen changes
 are preserved in the shared checkout. The backend commits through `c6b127e` are
 on PR #5; your UI changes remain a separate, uncommitted workstream at this writing.
@@ -15,7 +24,7 @@ clearly marked test-only unit variant. No numeric rounding is applied by HA.
 Both single and range targets may be present; prefer the range for `heat_cool`.
 The tenant emits three zones; the receiver accepts at most eight.
 
-## Display adapter decision
+## Initial display adapter decision (superseded below)
 
 Use an HA Cast dashboard/view containing a Lovelace `webpage` card that frames
 the guest screen. Keep `GUEST_WEB_HOST=127.0.0.1` and port 8766, with HTTPS
@@ -171,6 +180,22 @@ script configuration, never in entity attributes, MQTT, or this public repositor
 Commissioning helpers and dashboard paths now restore on restart; requested mode
 still resets OFF. All 112 tests, shell checks, and staged install/doctor pass.
 
-The automatic DashCast chain, a physical phone scan, spoken Alexa, and camera
-coexistence still need final acceptance. Subsequent screen-only edits in the
-shared checkout are not part of the installed v2.6.1 package.
+## Final commissioning and HVAC correction
+
+The corrected fixed-hook guard uses the script entity's state; both adapter
+templates were validated through the live HA template API. The installed HA
+package passed `ha core check`, and scripts reloaded without a Core restart.
+
+From TV OFF, Guest Mode reached `presenter_confirmed` with the matching active
+session heartbeat in 46.9 seconds. Repeated ON preserved that session. No other
+production guest browser was open during this test. The operator confirmed the
+full screen, Wi-Fi QR, and room temperatures. The phone QR scan, spoken Alexa
+commands, and camera coexistence remain untested.
+
+The operator subsequently reported overflowing HVAC chips and requested removal
+of the mode and separator dot. The chips now contain only the action, such as
+“Cooling now” or “Holding steady”; missing actions produce no empty chip. Both
+cooling and idle/range fixtures fit at 1280×720. The HVAC-only file was deployed
+over v2.6.1 and verified through the guest HTTPS route before refreshing the TV.
+All 112 tests, shell checks, and staged install/doctor pass after this correction.
+Fable's pending neutral-screen edits were preserved and excluded from this patch.

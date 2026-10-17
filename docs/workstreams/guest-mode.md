@@ -3,9 +3,11 @@
 Status: the combined backend, guest screen, and infrastructure workstream shipped
 in the local v2.6.1 deployment (2026-10-17). Authenticated MQTT, the restricted
 HTTPS route, and live UniFi QR retrieval are verified. The built-in HA Cast
-receiver failed to launch on the household TV; DashCast successfully opened the
-screen and the operator confirmed it was visible. Its automated activation and
-session heartbeat are being commissioned. No GitHub release is published here.
+receiver failed to launch on the household TV. The commissioned DashCast path
+now wakes the TV from OFF and receives a matching screen heartbeat in about
+47 seconds; repeated ON preserves the session. The operator confirmed the full
+guest screen, including Wi-Fi QR and room temperatures. Phone QR joining and
+spoken Alexa commands remain untested. No GitHub release is published here.
 
 ## Ownership and changes from the original plan
 
@@ -155,8 +157,8 @@ app name. Require the screen's matching session heartbeat and physical acceptanc
 Remove the hook to return to the HA Cast dashboard/view adapter.
 
 The household also has a Laboratory camera automation targeting this TV. Its
-priority/restoration interaction with Guest Mode must be checked before UI
-commissioning; this package does not silently rewrite that separate automation.
+priority/restoration interaction with Guest Mode remains an acceptance check;
+this package does not silently rewrite that separate automation.
 
 ## Verification and remaining acceptance
 
@@ -169,9 +171,15 @@ backend, unit, defaults, HA package, examples, and this handoff.
 A real temporary loopback Mosquitto smoke test (`uv run python tests/guest_mqtt_smoke.py`) verifies retained replay rejection,
 live ON/OFF, broker loss/reconnect, and graceful offline shutdown. The deployed
 public API and native QR image pass ON/OFF checks, including rejection of missing
-authentication and admin routes. A phone joining through the on-TV QR, spoken
-Alexa commands, automated TV rendering, and display coexistence remain separate
-commissioning checks.
+authentication and admin routes. The automated cold wake, matching presenter
+heartbeat, repeated-ON session preservation, and physical full-screen rendering
+are verified. A phone joining through the on-TV QR, spoken Alexa commands, and
+display coexistence remain separate commissioning checks.
+
+The HVAC status chips show the current action only, without the mode or separator
+dot. Cooling and idle/range fixtures fit the three-room 1280×720 layout. This
+screen-only correction was deployed over v2.6.1 after the operator reported
+overflow; the private receipt records its checksum and rollback copy.
 
 Rollback: turn Guest Mode OFF and unexpose its switch; disable the controller,
 stop the guest service, and restore/remove only this HA package. Preserve guest

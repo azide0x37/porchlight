@@ -60,7 +60,6 @@
   const longDateFormat = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" });
   const shortDateFormat = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" });
 
-  const MODE_LABEL = { off: "Off", heat: "Heat", cool: "Cool", heat_cool: "Auto", auto: "Auto", dry: "Dry", fan_only: "Fan" };
   const ACTION_LABEL = {
     off: "Off",
     heating: "Heating now",
@@ -296,13 +295,9 @@
     else if (target && zone.mode !== "off") detail = `<span class="target">Set to ${esc(target)}\u00b0</span>`;
     else if (available && zone.mode === "off") detail = `<span>System is off</span>`;
     let chip = "";
-    if (available && (zone.mode || zone.action)) {
-      const modeLabel = MODE_LABEL[zone.mode];
-      const actionLabel = ACTION_LABEL[zone.action];
-      const parts = modeLabel && actionLabel && modeLabel.toLowerCase() === actionLabel.toLowerCase()
-        ? [modeLabel]
-        : [modeLabel, actionLabel].filter(Boolean);
-      chip = `<span class="chip" data-action="${esc(zone.action || "")}">${esc(parts.join(" \u00b7 "))}</span>`;
+    const actionLabel = ACTION_LABEL[zone.action];
+    if (available && actionLabel) {
+      chip = `<span class="chip" data-action="${esc(zone.action)}">${esc(actionLabel)}</span>`;
     }
     if (!available) detail = `<span>${stale ? "Catching up\u2026" : "Not reporting right now"}</span>`;
     const temp = current == null

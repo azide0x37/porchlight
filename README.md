@@ -237,8 +237,8 @@ landing page is reachable.
 
 `porchlight-guest.service` also serves the guest TV screen at `/guest/` on its
 own listener (`GUEST_WEB_HOST:GUEST_WEB_PORT`, default `127.0.0.1:8766`). Home
-Assistant Cast uses a Lovelace webpage card pointing to an HTTPS reverse proxy
-for `/guest/#t=<access_token>` on the TV; the
+Assistant opens `/guest/#t=<access_token>` through a fixed display script using
+DashCast, with an HA Cast webpage card as the fallback; the
 token travels in the URL fragment, never in a query string or log, and the page
 moves it into session storage and scrubs the address bar. The admin dashboard
 listener answers 404 for the guest surface and renders never copy it into
@@ -252,7 +252,8 @@ screen height) or, when Home Assistant is the source, a QR image proxied by the
 guest service from the same origin. By the household's choice the network name
 and password never appear on the TV; the screen shows the code alone. It also shows
 up to three Alexa examples each for lights, music, and blinds, and read-only
-climate cards with current temperature, setpoint or range, mode, and action.
+climate cards with current temperature, setpoint or range, and action. Status
+chips omit the mode and separator dot to fit the three-room TV layout.
 While guest mode is off it shows a neutral clock screen. State changes, the
 moving voice highlight, and temperature updates animate through the View
 Transitions API; `@view-transition { navigation: auto }` crossfades same-origin
@@ -262,8 +263,9 @@ palette follows the time of day (morning, afternoon, evening, night).
 
 All of the screen's asset and API paths are relative, so the guest service can
 sit behind an HTTPS reverse proxy at the origin root or under a path prefix; the
-chosen display adapter is a Home Assistant Cast dashboard whose Lovelace
-`webpage` card frames the screen (see `docs/workstreams/notes/`).
+commissioned display adapter is the fixed HA script
+`script.porchlight_guest_open_display`, using DashCast. Without that hook, the
+package falls back to an HA Cast dashboard/view (see `docs/workstreams/notes/`).
 
 The screen fails closed: it polls `../api/guest` every five seconds, heartbeats
 after each render, and honors the backend's remaining freshness deadline (at
@@ -567,8 +569,8 @@ This writes:
 | README self-certifies compliance | PASS | this table |
 | guest backend / `T2C5.local-sidecar-bridge` | PASS (backend); live MQTT verified | `porchlight-guest.service`, 16 KiB MQTT schema, 45-second expiry, authenticated restricted API, session acknowledgements, owner-only config and lifecycle tests; separate HA/guest broker accounts and a fresh OFF snapshot verified after deployment; guest screen ships on the same listener (next row) |
 | guest TV screen is restricted and fail-closed | PASS | `src/porchlight/guest_web.py` allowlists `/guest/` assets on the guest listener only; the admin listener returns 404 for `/guest*` and `/api/guest*`; the screen hides credentials after 45 s without a fresh poll; dashboard writes to `guest.json` are validated by `load_guest_config` and kept 0600; `tests/test_guest_screen.py` |
-| guest HA / Alexa / TV acceptance | PARTIAL | HA configuration check, Alexa exposure, idempotent ON, OFF cancellation, and cold Vizio wake verified; HA receiver fails to launch, while DashCast opens the screen with physical operator confirmation; the fixed adapter hook preserves commissioning/session guards; automated rendering and spoken Alexa acceptance pending; see `docs/workstreams/notes/2026-10-17-backend-reply-to-fable.md` |
-| guest media and native Wi-Fi proxy | PASS (local); live HA QR fetch verified | Spotify player allowlist, session-bound Jam expiry, authenticated PNG endpoint with explicit application identity, redirect refusal, stale/off rejection, secret masking and removal; live authenticated native image fetch succeeds; rendered QR/phone scan remains pending; `tests/test_guest_media.py`, `tests/test_guest_screen.py` |
-| tests current | PASS | `make test`: 112 combined backend, UI, and infrastructure tests plus shell checks and staged install/doctor; 11 HVAC template fixtures; fixed display-hook guard and commissioning persistence checks; live loopback MQTT outage/reconnect smoke passed |
-| package builds | PASS | `make package DIST=/tmp/porchlight-ha-adapter-check` includes the guest backend, screen, preserved infrastructure features, HA package, docs, and tests; GitHub release publication remains separate |
+| guest HA / Alexa / TV acceptance | PARTIAL | HA configuration check, Alexa exposure, idempotent ON, and OFF cancellation verified; cold Vizio wake through DashCast reaches a matching active presenter heartbeat in 46.9 s; operator confirms the full screen; spoken Alexa and camera coexistence remain untested; see `docs/workstreams/notes/2026-10-17-backend-reply-to-fable.md` |
+| guest media and native Wi-Fi proxy | PASS (local); live HA QR fetch verified | Spotify player allowlist, session-bound Jam expiry, authenticated PNG endpoint with explicit application identity, redirect refusal, stale/off rejection, secret masking and removal; live authenticated native image fetch and physical QR rendering verified; phone scan remains untested; `tests/test_guest_media.py`, `tests/test_guest_screen.py` |
+| tests current | PASS | `make test`: 112 combined backend, UI, and infrastructure tests plus shell checks and staged install/doctor; 11 HVAC template fixtures; cooling and idle/range chips fit the three-room 1280×720 preview; fixed display-hook guard and commissioning persistence checks; live loopback MQTT outage/reconnect smoke passed |
+| package builds | PASS | `make package DIST=/tmp/porchlight-hvac-package-check` includes the guest backend, screen, preserved infrastructure features, HA package, docs, and tests; GitHub release publication remains separate |
 | infrastructure health is scoped and freshness-aware | PASS (local); provider acceptance pending | 26 infrastructure tests pass in the 112-test combined suite, including HTTP transport contracts; existing provider configuration is preserved. Authenticated full-fleet acceptance remains separate. |
